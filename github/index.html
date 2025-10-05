@@ -358,10 +358,7 @@
 <div id="notes-page" class="page hidden">
     <header class="bg-white dark:bg-gray-800 p-3 shadow-md z-10 shrink-0 border-b border-gray-200 dark:border-gray-700">
     <div id="notes-normal-header" class="flex items-center w-full bg-gray-100 dark:bg-gray-700 rounded-full h-12">
-        <button id="notes-menu-btn" class="p-3 text-gray-500 dark:text-gray-400">
-            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
-        </button>
-        <input type="text" id="notes-search-input" placeholder="Поиск" class="w-full h-full bg-transparent pr-4 outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400">
+        <input type="text" id="notes-search-input" placeholder="Поиск" class="w-full h-full bg-transparent px-4 outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400">
     </div>
 
     <div id="notes-selection-header" class="hidden items-center w-full h-12">
@@ -1683,7 +1680,9 @@
                     }
                 };
                 
-                ui.notesPage.menuBtn.onclick = () => toggleSidebar();
+                if (ui.notesPage.menuBtn) {
+                    ui.notesPage.menuBtn.onclick = () => toggleSidebar();
+                }
                 ui.settingsPage.lightThemeBtn.onclick = () => applyTheme('light');
                 ui.settingsPage.darkThemeBtn.onclick = () => applyTheme('dark');
                 
