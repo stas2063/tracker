@@ -619,42 +619,61 @@
                 return el?.closest('.note-card') || null;
             }
 
+            // ждём 2 кадра — гарантируем layout & стиль после showPage/openNoteEditor
+            const nextFrame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
             // Открытие: карточка → редактор
             async function openNoteEditorLikeKeep(noteId){
                 const hasVT = !!document.startViewTransition;
-                const card = document.querySelector(`.note-card[data-note-id="${noteId}"] .note-card-hero`);
-                const cardRect = card?.getBoundingClientRect();
-                if (hasVT && card){
-                    await document.startViewTransition(() => {
-                        openNoteEditor(noteId); // твоя существующая функция показа редактора
-                    }).finished;
+
+                // берём героя, а если его нет — всю карточку
+                let cardHero = document.querySelector(`.note-card[data-note-id="${noteId}"] .note-card-hero`);
+                const cardWhole = cardHero ? null : document.querySelector(`.note-card[data-note-id="${noteId}"]`);
+                const cardEl = cardHero || cardWhole;
+
+                // View Transitions (если поддерживается и есть герой в карточке)
+                if (hasVT && cardHero){
+                    await document.startViewTransition(() => { openNoteEditor(noteId); }).finished;
                     return;
                 }
 
-                // ФОЛЛБЭК (WAAPI): полёт клона карточки в позицию редактора
+                // ===== Fallback (WAAPI) =====
+                // 1) меряем исходник ДО открытия редактора
+                const r1 = cardEl?.getBoundingClientRect();
                 openNoteEditor(noteId);
-                const hero = document.getElementById('note-editor-hero');
-                if (!card || !hero || !cardRect) return;
 
-                const r1 = cardRect;
+                // 2) ждём отрисовку редактора (важно для WebView!)
+                await nextFrame();
+
+                const hero = document.getElementById('note-editor-hero');
+                if (!cardEl || !hero || !r1) return;
+
                 const r2 = hero.getBoundingClientRect();
 
-                const clone = card.cloneNode(true);
+                // 3) клон летит в позицию редактора
+                const clone = cardEl.cloneNode(true);
+                const computed = getComputedStyle(cardEl);
                 Object.assign(clone.style, {
-                    position:'fixed', left:r1.left+'px', top:r1.top+'px',
-                    width:r1.width+'px', height:r1.height+'px',
-                    margin:0, zIndex:9999, pointerEvents:'none'
+                    position: 'fixed',
+                    left: `${r1.left}px`, top: `${r1.top}px`,
+                    width: `${r1.width}px`, height: `${r1.height}px`,
+                    margin: 0, zIndex: 9999, pointerEvents: 'none',
+                    background: computed.backgroundColor || 'transparent',
+                    borderRadius: computed.borderRadius || '0'
                 });
                 document.body.appendChild(clone);
 
                 const dx = r2.left - r1.left, dy = r2.top - r1.top;
                 const sx = r2.width / r1.width, sy = r2.height / r1.height;
-                const dur = matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 240;
+                const dur = matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 260;
 
-                await clone.animate([
-                    { transform:'translate(0,0) scale(1,1)', opacity:1 },
-                    { transform:`translate(${dx}px,${dy}px) scale(${sx},${sy})`, opacity:1 }
-                ], { duration: dur, easing:'cubic-bezier(.2,.8,.2,1)', fill:'forwards' }).finished.catch(() => {});
+                await clone.animate(
+                    [
+                        { transform: 'translate(0,0) scale(1,1)', opacity: 1 },
+                        { transform: `translate(${dx}px,${dy}px) scale(${sx},${sy})`, opacity: 1 }
+                    ],
+                    { duration: dur, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' }
+                ).finished.catch(()=>{});
 
                 clone.remove();
             }
