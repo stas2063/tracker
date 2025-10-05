@@ -1437,27 +1437,49 @@
             };
 
             /* [AI-EDIT START: sidebar-flicker-fix] */
+            let pendingSidebarOverlayClose = null;
+
             const toggleSidebar = (forceOpen) => {
                 const isOpen = ui.sidebar.classList.contains('open');
                 const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !isOpen;
-
-                ui.sidebar.classList.toggle('open', shouldOpen);
-
                 const overlay = ui.sidebarOverlay;
 
+                if (pendingSidebarOverlayClose) {
+                    overlay.removeEventListener('transitionend', pendingSidebarOverlayClose);
+                    pendingSidebarOverlayClose = null;
+                }
+
                 if (shouldOpen) {
+                    if (isOpen) {
+                        overlay.classList.remove('hidden');
+                        overlay.style.opacity = '1';
+                        return;
+                    }
+
                     overlay.classList.remove('hidden');
                     overlay.style.opacity = '0';
                     void overlay.offsetWidth;
+                    ui.sidebar.classList.add('open');
                     overlay.style.opacity = '1';
                 } else {
-                    const onEnd = (e) => {
-                        if (e.propertyName === 'opacity') {
-                            overlay.classList.add('hidden');
-                            overlay.removeEventListener('transitionend', onEnd);
-                        }
+                    const handleTransitionEnd = (event) => {
+                        if (event.propertyName !== 'opacity') return;
+                        overlay.classList.add('hidden');
+                        ui.sidebar.classList.remove('open');
+                        overlay.removeEventListener('transitionend', handleTransitionEnd);
+                        pendingSidebarOverlayClose = null;
                     };
-                    overlay.addEventListener('transitionend', onEnd);
+
+                    pendingSidebarOverlayClose = handleTransitionEnd;
+
+                    if (overlay.classList.contains('hidden')) {
+                        handleTransitionEnd({ propertyName: 'opacity' });
+                        overlay.style.opacity = '0';
+                        return;
+                    }
+
+                    overlay.addEventListener('transitionend', handleTransitionEnd);
+                    ui.sidebar.classList.remove('open');
                     overlay.style.opacity = '0';
                 }
             };
