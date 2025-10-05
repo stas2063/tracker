@@ -166,21 +166,27 @@
             padding-top: calc(env(safe-area-inset-top) + 2rem);
         }
 
+        <!-- [AI-EDIT START: keep-transition] -->
         /* --- Анимация перехода для заметок --- */
 
-        /* Устанавливаем уникальное имя для перехода на конкретном элементе */
-        [data-note-transition-name] {
-            view-transition-name: var(--transition-name);
+        .note-card-hero,
+        #note-editor-hero {
+            view-transition-name: note-hero;
         }
 
-        /* Анимация для фона (всего остального, что не является карточкой) */
-        @keyframes fade-in {
-            from { opacity: 0; }
+        ::view-transition-old(note-hero) {
+            animation: noteHeroOut .26s cubic-bezier(.2,.8,.2,1) both;
         }
 
-        @keyframes fade-out {
-            to { opacity: 0; }
+        ::view-transition-new(note-hero) {
+            animation: noteHeroIn .26s cubic-bezier(.2,.8,.2,1) both;
         }
+
+        @keyframes noteHeroOut { to { opacity: 0; } }
+        @keyframes noteHeroIn  { from { opacity: 0; } to { opacity: 1; } }
+
+        @keyframes fade-in { from { opacity: 0; } }
+        @keyframes fade-out { to { opacity: 0; } }
 
         ::view-transition-old(root) {
             animation: 300ms ease-out both fade-out;
@@ -189,15 +195,32 @@
         ::view-transition-new(root) {
             animation: 300ms ease-in both fade-in;
         }
-        /* --- Конец секции анимации --- */
+
+        .note-enter {
+            animation: noteIn .2s cubic-bezier(.2,.8,.2,1) both;
+        }
+
+        @keyframes noteIn {
+            from { opacity: 0; transform: translateY(8px) scale(.98); }
+            to { opacity: 1; transform: none; }
+        }
 
         @media (prefers-reduced-motion: reduce) {
             ::view-transition-old(root),
-            ::view-transition-new(root) {
+            ::view-transition-new(root),
+            ::view-transition-old(note-hero),
+            ::view-transition-new(note-hero) {
+                animation-duration: 1ms !important;
+                animation-iteration-count: 1 !important;
+            }
+
+            .note-enter {
                 animation-duration: 1ms !important;
                 animation-iteration-count: 1 !important;
             }
         }
+        /* --- Конец секции анимации --- */
+        <!-- [AI-EDIT END: keep-transition] -->
     </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
@@ -514,12 +537,249 @@
             let activeStatsPeriod = 'month', statsStartDate = null, statsEndDate = null;
             
             // Notes page state
+            <!-- [AI-EDIT START: keep-transition] -->
             let notes = [];
             let currentNoteId = null;
+            let newNoteId = null;
             let isNotesSearchActive = false;
             let isNotesSelectionMode = false;
             let selectedNoteIds = new Set();
             let notesPressTimer = null;
+
+            const prefersReducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+            const nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+            const openNoteEditorLikeKeep = async (noteId) => {
+                const normalizedId = typeof noteId === 'number' && !Number.isNaN(noteId) ? noteId : null;
+                const hasViewTransitions = typeof document.startViewTransition === 'function';
+                const selector = normalizedId !== null ? `.note-card[data-note-id="${normalizedId}"]` : null;
+                const cardHero = selector ? ui.notesPage.listContainer.querySelector(`${selector} .note-card-hero`) : null;
+                const cardWhole = selector && !cardHero ? ui.notesPage.listContainer.querySelector(selector) : null;
+                const sourceEl = cardHero || cardWhole || null;
+
+                if (hasViewTransitions) {
+                    if (cardHero) {
+                        try {
+                            await document.startViewTransition(() => { openNoteEditor(normalizedId); }).finished;
+                            return;
+                        } catch (err) {
+                            console.warn('ViewTransition failed while opening note:', err);
+                        }
+                    } else {
+                        try {
+                            await document.startViewTransition(() => { openNoteEditor(normalizedId); }).finished;
+                            return;
+                        } catch (err) {
+                            console.warn('ViewTransition fallback while opening note:', err);
+                        }
+                    }
+                }
+
+                const initialRect = sourceEl?.getBoundingClientRect();
+                openNoteEditor(normalizedId);
+                await nextFrame();
+
+                const hero = ui.noteEditorPage.hero;
+                if (!sourceEl || !hero || !initialRect) return;
+
+                const targetRect = hero.getBoundingClientRect();
+                const clone = sourceEl.cloneNode(true);
+                const sourceStyle = getComputedStyle(sourceEl);
+                Object.assign(clone.style, {
+                    position: 'fixed',
+                    left: `${initialRect.left}px`,
+                    top: `${initialRect.top}px`,
+                    width: `${initialRect.width}px`,
+                    height: `${initialRect.height}px`,
+                    margin: '0',
+                    zIndex: '9999',
+                    pointerEvents: 'none',
+                    background: sourceStyle.backgroundColor || 'transparent',
+                    borderRadius: sourceStyle.borderRadius || '0',
+                });
+                document.body.appendChild(clone);
+
+                const dx = targetRect.left - initialRect.left;
+                const dy = targetRect.top - initialRect.top;
+                const sx = targetRect.width / initialRect.width;
+                const sy = targetRect.height / initialRect.height;
+                const duration = prefersReducedMotion() ? 1 : 260;
+
+                if (typeof clone.animate !== 'function') {
+                    clone.remove();
+                    return;
+                }
+
+                try {
+                    await clone.animate(
+                        [
+                            { transform: 'translate(0,0) scale(1,1)', opacity: 1 },
+                            { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 1 },
+                        ],
+                        { duration, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' }
+                    ).finished;
+                } catch (err) {
+                    console.warn('WAAPI animation failed while opening note:', err);
+                } finally {
+                    clone.remove();
+                }
+            };
+
+            const closeEditorLikeKeep = async (noteId) => {
+                const normalizedId = typeof noteId === 'number' && !Number.isNaN(noteId) ? noteId : null;
+                const hasViewTransitions = typeof document.startViewTransition === 'function';
+                const hero = ui.noteEditorPage.hero;
+                if (!hero) {
+                    showPage('notes');
+                    return;
+                }
+
+                if (hasViewTransitions) {
+                    try {
+                        await document.startViewTransition(() => { showPage('notes'); }).finished;
+                        return;
+                    } catch (err) {
+                        console.warn('ViewTransition failed while closing note:', err);
+                    }
+                }
+
+                const startRect = hero.getBoundingClientRect();
+                const clone = hero.cloneNode(true);
+                const heroStyle = getComputedStyle(hero);
+                Object.assign(clone.style, {
+                    position: 'fixed',
+                    left: `${startRect.left}px`,
+                    top: `${startRect.top}px`,
+                    width: `${startRect.width}px`,
+                    height: `${startRect.height}px`,
+                    margin: '0',
+                    zIndex: '9999',
+                    pointerEvents: 'none',
+                    background: heroStyle.backgroundColor || 'transparent',
+                    borderRadius: heroStyle.borderRadius || '0',
+                });
+                document.body.appendChild(clone);
+
+                showPage('notes');
+                await nextFrame();
+
+                const selector = normalizedId !== null ? `.note-card[data-note-id="${normalizedId}"]` : null;
+                const targetHero = selector ? ui.notesPage.listContainer.querySelector(`${selector} .note-card-hero`) : null;
+                const targetCard = selector && !targetHero ? ui.notesPage.listContainer.querySelector(selector) : null;
+                const targetEl = targetHero || targetCard;
+                if (!targetEl) {
+                    clone.remove();
+                    return;
+                }
+
+                const targetRect = targetEl.getBoundingClientRect();
+                const dx = targetRect.left - startRect.left;
+                const dy = targetRect.top - startRect.top;
+                const sx = targetRect.width / startRect.width;
+                const sy = targetRect.height / startRect.height;
+                const duration = prefersReducedMotion() ? 1 : 260;
+
+                if (typeof clone.animate !== 'function') {
+                    clone.remove();
+                    return;
+                }
+
+                try {
+                    await clone.animate(
+                        [
+                            { transform: 'translate(0,0) scale(1,1)', opacity: 1 },
+                            { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 1 },
+                        ],
+                        { duration, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' }
+                    ).finished;
+                } catch (err) {
+                    console.warn('WAAPI animation failed while closing note:', err);
+                } finally {
+                    clone.remove();
+                }
+            };
+
+            const renderNotes = (filterQuery = '') => {
+                const { listContainer, noNotesPlaceholder } = ui.notesPage;
+                listContainer.innerHTML = '';
+                const query = filterQuery.trim().toLowerCase();
+                const filteredNotes = notes.filter(note => note.content.toLowerCase().includes(query));
+                noNotesPlaceholder.classList.toggle('hidden', filteredNotes.length > 0 || isNotesSelectionMode);
+
+                let newNoteHandled = false;
+                const reduceMotion = prefersReducedMotion();
+
+                filteredNotes.sort((a, b) => b.id - a.id).forEach(note => {
+                    const card = document.createElement('div');
+                    card.className = 'note-card cursor-pointer transition-all duration-150 transform active:scale-95';
+                    card.dataset.noteId = note.id;
+                    if (selectedNoteIds.has(note.id.toString())) {
+                        card.classList.add('selected');
+                    }
+                    card.innerHTML = `
+                        <div class="note-card-hero">
+                            <p class="note-content text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">${note.content.substring(0, 200)}${note.content.length > 200 ? '...' : ''}</p>
+                        </div>
+                        <div class="selection-indicator-wrapper">
+                            <div class="selection-indicator-icon">
+                                <svg class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
+                            </div>
+                        </div>
+                    `;
+                    listContainer.appendChild(card);
+
+                    if (!newNoteHandled && note.id === newNoteId) {
+                        newNoteHandled = true;
+                        if (!reduceMotion) {
+                            void card.offsetWidth;
+                            card.classList.add('note-enter');
+                            card.addEventListener('animationend', () => {
+                                card.classList.remove('note-enter');
+                            }, { once: true });
+                        }
+                        requestAnimationFrame(() => {
+                            card.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+                        });
+                    }
+                });
+
+                if (newNoteHandled || filteredNotes.every(note => note.id !== newNoteId)) {
+                    newNoteId = null;
+                }
+            };
+
+            const saveCurrentNote = async () => {
+                const content = ui.noteEditorPage.textarea.value.trim();
+                let noteIdToTransition = currentNoteId;
+                newNoteId = null;
+
+                if (content) {
+                    if (currentNoteId !== null) {
+                        const index = notes.findIndex(n => n.id === currentNoteId);
+                        if (index > -1) {
+                            notes[index].content = content;
+                        }
+                    } else {
+                        const newNote = { id: Date.now(), content };
+                        notes.push(newNote);
+                        currentNoteId = newNote.id;
+                        noteIdToTransition = newNote.id;
+                        newNoteId = newNote.id;
+                    }
+                } else if (currentNoteId !== null) {
+                    notes = notes.filter(n => n.id !== currentNoteId);
+                }
+
+                saveData();
+
+                try {
+                    await closeEditorLikeKeep(noteIdToTransition);
+                } finally {
+                    currentNoteId = null;
+                }
+            };
+            <!-- [AI-EDIT END: keep-transition] -->
 
             // Global UI state
             let isSearchModalOpen = false;
@@ -922,87 +1182,9 @@
                 container.innerHTML = `<button id="clear-account-data-btn" data-account-id-to-clear="${Object.keys(accounts)[0]}" class="w-full p-3 rounded-lg bg-red-500 text-white hover:bg-red-600">Очистить данные счета</button>`;
             };
 
-            const renderNotes = (filterQuery = '') => {
-                const { listContainer, noNotesPlaceholder } = ui.notesPage;
-                listContainer.innerHTML = '';
-                const query = filterQuery.trim().toLowerCase();
-                const filteredNotes = notes.filter(note => note.content.toLowerCase().includes(query));
-                noNotesPlaceholder.classList.toggle('hidden', filteredNotes.length > 0 || isNotesSelectionMode);
-                
-                filteredNotes.sort((a, b) => b.id - a.id).forEach(note => {
-                    const card = document.createElement('div');
-                    card.className = 'note-card cursor-pointer transition-all duration-150 transform active:scale-95';
-                    card.dataset.noteId = note.id;
-                    if (selectedNoteIds.has(note.id.toString())) {
-                        card.classList.add('selected');
-                    }
-                    card.innerHTML = `
-                        <div class="note-card-hero">
-                            <p class="note-content text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">${note.content.substring(0, 200)}${note.content.length > 200 ? '...' : ''}</p>
-                        </div>
-                        <div class="selection-indicator-wrapper">
-                            <div class="selection-indicator-icon">
-                                <svg class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
-                            </div>
-                        </div>
-                    `;
-                    listContainer.appendChild(card);
-                });
-            }
-
-            const saveCurrentNote = () => {
-                const content = ui.noteEditorPage.textarea.value.trim();
-                const noteIdToTransition = currentNoteId;
-
-                if (content) {
-                    if (currentNoteId !== null) {
-                        const index = notes.findIndex(n => n.id === currentNoteId);
-                        if (index > -1) notes[index].content = content;
-                    } else {
-                        const newNote = { id: Date.now(), content: content };
-                        notes.push(newNote);
-                        currentNoteId = newNote.id;
-                    }
-                } else if (currentNoteId !== null) {
-                    notes = notes.filter(n => n.id !== currentNoteId);
-                }
-
-                if (!document.startViewTransition || noteIdToTransition === null) {
-                    saveData();
-                    showPage('notes');
-                    currentNoteId = null;
-                    return;
-                }
-
-                const transitionName = `note-card-${noteIdToTransition}`;
-                const editorPage = ui.noteEditorPage.page;
-
-                editorPage.style.setProperty('--transition-name', transitionName);
-                editorPage.setAttribute('data-note-transition-name', '');
-
-                saveData();
-
-                const transition = document.startViewTransition(() => {
-                    showPage('notes');
-
-                    const targetCard = ui.notesPage.listContainer.querySelector(`[data-note-id="${noteIdToTransition}"]`);
-                    if (targetCard) {
-                        targetCard.style.setProperty('--transition-name', transitionName);
-                        targetCard.setAttribute('data-note-transition-name', '');
-                    }
-                });
-
-                transition.finished.finally(() => {
-                    editorPage.style.removeProperty('--transition-name');
-                    editorPage.removeAttribute('data-note-transition-name');
-                    const targetCard = ui.notesPage.listContainer.querySelector(`[data-note-id="${noteIdToTransition}"]`);
-                    if (targetCard) {
-                        targetCard.style.removeProperty('--transition-name');
-                        targetCard.removeAttribute('data-note-transition-name');
-                    }
-                    currentNoteId = null;
-                });
-            }
+            <!-- [AI-EDIT START: keep-transition] -->
+            // superseded by keep-transition renderNotes/saveCurrentNote implementations above
+            <!-- [AI-EDIT END: keep-transition] -->
 
             function enterNotesSelectionMode(noteCard) {
                 isNotesSelectionMode = true;
@@ -1430,7 +1612,7 @@
                         }
                         showTransactionModal(displayFilter);
                     } else if (activePageId === 'notes-page') {
-                        openNoteEditor(null);
+                        openNoteEditorLikeKeep(null);
                     }
                 };
                 
@@ -1507,43 +1689,10 @@
                             updateSelectionHeader();
                         }
                     } else {
-                        // --- НАЧАЛО ИЗМЕНЕНИЙ (ОТКРЫТИЕ) ---
-
-                        // 1. Проверяем, поддерживает ли браузер API
-                        if (!document.startViewTransition) {
-                            showPage('note-editor', { noteId: parseInt(targetCard.dataset.noteId) });
-                            return;
-                        }
-
-                        const noteId = targetCard.dataset.noteId;
-                        const transitionName = `note-card-${noteId}`;
-
-                        // 2. Задаём уникальное имя для перехода на карточке, по которой кликнули
-                        targetCard.style.setProperty('--transition-name', transitionName);
-                        targetCard.setAttribute('data-note-transition-name', '');
-
-
-                        // 3. Запускаем переход
-                        const transition = document.startViewTransition(() => {
-                            // Задаём такое же имя для страницы-редактора
-                            const editorPage = ui.noteEditorPage.page;
-                            editorPage.style.setProperty('--transition-name', transitionName);
-                            editorPage.setAttribute('data-note-transition-name', '');
-
-                            // Выполняем твою обычную логику смены страницы
-                            showPage('note-editor', { noteId: parseInt(noteId) });
-                        });
-
-                        // 4. Очищаем имена после завершения анимации, чтобы не было конфликтов
-                        transition.finished.finally(() => {
-                            targetCard.style.removeProperty('--transition-name');
-                            targetCard.removeAttribute('data-note-transition-name');
-                            const editorPage = ui.noteEditorPage.page;
-                            editorPage.style.removeProperty('--transition-name');
-                            editorPage.removeAttribute('data-note-transition-name');
-                        });
-
-                        // --- КОНЕЦ ИЗМЕНЕНИЙ ---
+                        <!-- [AI-EDIT START: keep-transition] -->
+                        const noteId = parseInt(targetCard.dataset.noteId, 10);
+                        openNoteEditorLikeKeep(Number.isNaN(noteId) ? null : noteId);
+                        <!-- [AI-EDIT END: keep-transition] -->
                     }
                 });
 
