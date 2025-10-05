@@ -102,16 +102,16 @@
             border-color: #1f2937; /* dark:border-gray-800 */
         }
 
-        .note-card.selected .selection-indicator-wrapper {
+        .note-card.ring-2 .selection-indicator-wrapper {
             opacity: 1;
             pointer-events: auto;
             transform: scale(1);
         }
-        
-        .note-card.selected {
+
+        .note-card.ring-2 {
             background-color: #DBEAFE; /* light mode selection color */
         }
-        .dark .note-card.selected {
+        .dark .note-card.ring-2 {
             background-color: #1E3A8A; /* dark mode selection color */
         }
         /* --- End Note Card Refactor --- */
@@ -736,7 +736,7 @@
                     card.className = 'note-card cursor-pointer transition-all duration-150 transform active:scale-95';
                     card.dataset.noteId = note.id;
                     if (selectedNoteIds.has(note.id.toString())) {
-                        card.classList.add('selected');
+                        card.classList.add('ring-2', 'ring-blue-500');
                     }
                     card.innerHTML = `
                         <div class="note-card-hero">
@@ -1214,7 +1214,7 @@
                 ui.notesPage.selectionHeader.classList.remove('hidden');
                 ui.addBtn.classList.add('hidden');
                 const noteId = noteCard.dataset.noteId;
-                noteCard.classList.add('selected');
+                noteCard.classList.add('ring-2', 'ring-blue-500');
                 selectedNoteIds.add(noteId);
                 updateSelectionHeader();
             }
@@ -1227,7 +1227,7 @@
                 if (!isSearchModalOpen) {
                     ui.addBtn.classList.remove('hidden');
                 }
-                document.querySelectorAll('.note-card.selected').forEach(card => card.classList.remove('selected'));
+                document.querySelectorAll('.note-card').forEach(card => card.classList.remove('ring-2', 'ring-blue-500'));
                 selectedNoteIds.clear();
             }
 
@@ -1235,28 +1235,31 @@
                 ui.notesPage.selectionCountSpan.textContent = `Выбрано: ${selectedNoteIds.size}`;
             }
 
-            // Выбрать все / снять выделение по повторному клику
-            document.getElementById("select-all-btn").addEventListener("click", () => {
-                const noteCards = ui.notesPage.listContainer.querySelectorAll(".note-card");
-                const allSelected = [...noteCards].length > 0 && [...noteCards].every(card => card.classList.contains("selected"));
+            // --- Toggle "Выбрать все" ---
+            const selectAllBtn = document.getElementById("select-all-btn");
+            if (selectAllBtn) {
+                selectAllBtn.addEventListener("click", () => {
+                    const noteCards = ui.notesPage.listContainer.querySelectorAll(".note-card");
+                    const allSelected = [...noteCards].length > 0 && [...noteCards].every(card => card.classList.contains("ring-2"));
 
-                if (allSelected) {
-                    // Снять выделение со всех
-                    selectedNoteIds.clear();
-                    noteCards.forEach(card => card.classList.remove("selected"));
-                } else {
-                    // Выделить все
-                    selectedNoteIds.clear();
-                    noteCards.forEach(card => {
-                        const id = card.dataset.noteId;
-                        selectedNoteIds.add(id);
-                        card.classList.add("selected");
-                    });
-                }
+                    if (allSelected) {
+                        // Снять выделение со всех
+                        selectedNoteIds.clear();
+                        noteCards.forEach(card => card.classList.remove("ring-2", "ring-blue-500"));
+                    } else {
+                        // Выделить все
+                        selectedNoteIds.clear();
+                        noteCards.forEach(card => {
+                            const id = card.dataset.noteId;
+                            selectedNoteIds.add(id);
+                            card.classList.add("ring-2", "ring-blue-500");
+                        });
+                    }
 
-                // обновляем счётчик
-                ui.notesPage.selectionCountSpan.textContent = `Выбрано: ${selectedNoteIds.size}`;
-            });
+                    // Обновляем счётчик
+                    ui.notesPage.selectionCountSpan.textContent = `Выбрано: ${selectedNoteIds.size}`;
+                });
+            }
             
             const renderPeriodButtons = () => {
                 const customPicker = ui.statsPage.customDateRangePicker;
@@ -1766,11 +1769,12 @@
 
                     if (isNotesSelectionMode) {
                         const noteId = targetCard.dataset.noteId;
-                        targetCard.classList.toggle('selected');
                         if (selectedNoteIds.has(noteId)) {
                             selectedNoteIds.delete(noteId);
+                            targetCard.classList.remove('ring-2', 'ring-blue-500');
                         } else {
                             selectedNoteIds.add(noteId);
+                            targetCard.classList.add('ring-2', 'ring-blue-500');
                         }
                         if (selectedNoteIds.size === 0) {
                             exitNotesSelectionMode();
@@ -1786,14 +1790,6 @@
                 });
 
                 document.getElementById('selection-exit-btn').addEventListener('click', exitNotesSelectionMode);
-
-                document.getElementById('select-all-btn').addEventListener('click', () => {
-                    document.querySelectorAll('#notes-list-container .note-card').forEach(card => {
-                        card.classList.add('selected');
-                        selectedNoteIds.add(card.dataset.noteId);
-                    });
-                    updateSelectionHeader();
-                });
 
                 document.getElementById('delete-selected-btn-notes').addEventListener('click', () => {
                     if (selectedNoteIds.size === 0) return;
