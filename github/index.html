@@ -165,33 +165,6 @@
         #search-modal {
             padding-top: calc(env(safe-area-inset-top) + 2rem);
         }
-
-        /* один и тот же герой у карточки и у редактора */
-        .note-card-hero,
-        #note-editor-hero { view-transition-name: note-hero; }
-
-        /* чистый fade без blur/scale (чтобы не «мыло») */
-        ::view-transition-old(note-hero){ animation: noteHeroOut .18s ease-out both; }
-        ::view-transition-new(note-hero){ animation: noteHeroIn  .22s ease-out both; }
-        @keyframes noteHeroOut { to { opacity: 0 } }
-        @keyframes noteHeroIn  { from { opacity: 0 } to { opacity: 1 } }
-
-        /* лёгкое затемнение сцены (без blur) — можно убрать, если не надо */
-        ::view-transition-old(root){ animation: vtFadeBgOut .16s ease-out both; }
-        ::view-transition-new(root){ animation: vtFadeBgIn  .20s ease-out both; }
-        @keyframes vtFadeBgOut { to   { opacity: .98 } }
-        @keyframes vtFadeBgIn  { from { opacity: .98 } to { opacity: 1 } }
-
-        /* на всякий: никаких фильтров/скейлов у героев */
-        .note-card-hero, #note-editor-hero { filter:none !important; -webkit-filter:none !important; will-change: transform, opacity; transform: translateZ(0); }
-
-        /* уважение к reduce motion */
-        @media (prefers-reduced-motion: reduce){
-          ::view-transition-old(root), ::view-transition-new(root),
-          ::view-transition-old(note-hero), ::view-transition-new(note-hero){
-            animation-duration:1ms !important; animation-iteration-count:1 !important;
-          }
-        }
     </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
@@ -339,13 +312,11 @@
         <h1 class="text-xl font-bold ml-4">Заметка</h1>
     </header>
     <main class="flex-grow">
-        <div id="note-editor-hero" class="h-full">
-            <textarea id="note-editor-textarea" class="w-full h-full p-4 bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white outline-none resize-none text-lg" placeholder="Введите текст..."></textarea>
-        </div>
+        <textarea id="note-editor-textarea" class="w-full h-full p-4 bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white outline-none resize-none text-lg" placeholder="Введите текст..."></textarea>
     </main>
 </div>
     </div>
-
+    
     <!-- Floating buttons -->
     <button id="add-btn" class="fixed bottom-20 md:bottom-6 right-6 bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 transition-transform transform hover:scale-110 z-20">
         <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
@@ -488,7 +459,6 @@
                     page: document.getElementById('note-editor-page'),
                     backBtn: document.getElementById('note-editor-back-btn'),
                     textarea: document.getElementById('note-editor-textarea'),
-                    hero: document.getElementById('note-editor-hero'),
                 }
             };
 
@@ -517,7 +487,6 @@
 
             // Global UI state
             let isSearchModalOpen = false;
-
 
             // --- Formatters ---
             const currencyFormatter = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 0 });
@@ -604,95 +573,9 @@
                 else if (pageId === 'notes') renderNotes();
                 else if (pageId === 'note-editor') setupNoteEditor(options.noteId);
                 else if (pageId === 'settings') renderDataManagementUI();
-
+                
                 toggleSidebar(false);
             };
-
-            const openNoteEditor = (noteId = null) => {
-                showPage('note-editor', { noteId });
-            };
-
-            // Пометить/снять пометку у карточки (для отладки — не обязательно, но удобно)
-            function markCard(noteId, on = true) {
-                const el = document.querySelector(`.note-card[data-note-id="${noteId}"] .note-card-hero`);
-                if (el) el.toggleAttribute('data-active', on);
-                return el?.closest('.note-card') || null;
-            }
-
-            // ждём 2 кадра — гарантируем layout & стиль после showPage/openNoteEditor
-            const nextFrame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-            // Открытие: карточка → редактор
-            async function openNoteEditorLikeKeep(noteId){
-                const hasVT = !!document.startViewTransition;
-
-                // берём героя, а если его нет — всю карточку
-                let cardHero = document.querySelector(`.note-card[data-note-id="${noteId}"] .note-card-hero`);
-                const cardWhole = cardHero ? null : document.querySelector(`.note-card[data-note-id="${noteId}"]`);
-                const cardEl = cardHero || cardWhole;
-
-                // View Transitions (если поддерживается и есть герой в карточке)
-                if (hasVT && cardHero){
-                    await document.startViewTransition(() => { openNoteEditor(noteId); }).finished;
-                    return;
-                }
-
-                // ===== Fallback (WAAPI) =====
-                // 1) меряем исходник ДО открытия редактора
-                const r1 = cardEl?.getBoundingClientRect();
-                openNoteEditor(noteId);
-
-                // 2) ждём отрисовку редактора (важно для WebView!)
-                await nextFrame();
-
-                const hero = document.getElementById('note-editor-hero');
-                if (!cardEl || !hero || !r1) return;
-
-                const r2 = hero.getBoundingClientRect();
-
-                // 3) клон летит в позицию редактора
-                const clone = cardEl.cloneNode(true);
-                const computed = getComputedStyle(cardEl);
-                Object.assign(clone.style, {
-                    position: 'fixed',
-                    left: `${r1.left}px`, top: `${r1.top}px`,
-                    width: `${r1.width}px`, height: `${r1.height}px`,
-                    margin: 0, zIndex: 9999, pointerEvents: 'none',
-                    background: computed.backgroundColor || 'transparent',
-                    borderRadius: computed.borderRadius || '0'
-                });
-                document.body.appendChild(clone);
-
-                const dx = r2.left - r1.left, dy = r2.top - r1.top;
-                const sx = r2.width / r1.width, sy = r2.height / r1.height;
-                const dur = matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 260;
-
-                await clone.animate(
-                    [
-                        { transform: 'translate(0,0) scale(1,1)', opacity: 1 },
-                        { transform: `translate(${dx}px,${dy}px) scale(${sx},${sy})`, opacity: 1 }
-                    ],
-                    { duration: dur, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' }
-                ).finished.catch(()=>{});
-
-                clone.remove();
-            }
-
-            // Закрытие: редактор → карточка
-            async function closeEditorLikeKeep(){
-                const hasVT = !!document.startViewTransition;
-                if (hasVT){
-                    try {
-                        await document.startViewTransition(() => { showPage('notes'); }).finished;
-                    } finally {
-                        currentNoteId = null;
-                    }
-                    return;
-                }
-                // ФОЛЛБЭК простой (без обратного полёта — можно дописать аналогично, если нужно):
-                showPage('notes');
-                currentNoteId = null;
-            }
 
             const createTransactionElement = (tx) => {
                 const isIncome = tx.type === 'income';
@@ -1013,9 +896,7 @@
                         card.classList.add('selected');
                     }
                     card.innerHTML = `
-                        <div class="note-card-hero">
-                            <p class="note-content text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">${note.content.substring(0, 200)}${note.content.length > 200 ? '...' : ''}</p>
-                        </div>
+                        <p class="note-content text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">${note.content.substring(0, 200)}${note.content.length > 200 ? '...' : ''}</p>
                         <div class="selection-indicator-wrapper">
                             <div class="selection-indicator-icon">
                                 <svg class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
@@ -1026,9 +907,6 @@
                 });
             }
 
-            window.openNoteEditorLikeKeep = openNoteEditorLikeKeep;
-            window.closeEditorLikeKeep = closeEditorLikeKeep;
-
             const saveCurrentNote = () => {
                 const content = ui.noteEditorPage.textarea.value.trim();
                 if (content) {
@@ -1036,16 +914,13 @@
                         const index = notes.findIndex(n => n.id === currentNoteId);
                         if (index > -1) notes[index].content = content;
                     } else {
-                        const newId = Date.now();
-                        notes.push({ id: newId, content: content });
-                        currentNoteId = newId;
+                        notes.push({ id: Date.now(), content: content });
                     }
                 } else if (currentNoteId !== null) {
                     notes = notes.filter(n => n.id !== currentNoteId);
-                    currentNoteId = null;
                 }
                 saveData();
-                closeEditorLikeKeep();
+                showPage('notes');
             }
 
             function enterNotesSelectionMode(noteCard) {
@@ -1474,7 +1349,7 @@
                         }
                         showTransactionModal(displayFilter);
                     } else if (activePageId === 'notes-page') {
-                        openNoteEditorLikeKeep(null);
+                        showPage('note-editor', { noteId: null });
                     }
                 };
                 
@@ -1551,7 +1426,7 @@
                             updateSelectionHeader();
                         }
                     } else {
-                        openNoteEditorLikeKeep(parseInt(targetCard.dataset.noteId));
+                        showPage('note-editor', { noteId: parseInt(targetCard.dataset.noteId) });
                     }
                 });
 
