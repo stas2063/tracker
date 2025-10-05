@@ -165,6 +165,39 @@
         #search-modal {
             padding-top: calc(env(safe-area-inset-top) + 2rem);
         }
+
+        /* --- Анимация перехода для заметок --- */
+
+        /* Устанавливаем уникальное имя для перехода на конкретном элементе */
+        [data-note-transition-name] {
+            view-transition-name: var(--transition-name);
+        }
+
+        /* Анимация для фона (всего остального, что не является карточкой) */
+        @keyframes fade-in {
+            from { opacity: 0; }
+        }
+
+        @keyframes fade-out {
+            to { opacity: 0; }
+        }
+
+        ::view-transition-old(root) {
+            animation: 300ms ease-out both fade-out;
+        }
+
+        ::view-transition-new(root) {
+            animation: 300ms ease-in both fade-in;
+        }
+        /* --- Конец секции анимации --- */
+
+        @media (prefers-reduced-motion: reduce) {
+            ::view-transition-old(root),
+            ::view-transition-new(root) {
+                animation-duration: 1ms !important;
+                animation-iteration-count: 1 !important;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
@@ -312,11 +345,13 @@
         <h1 class="text-xl font-bold ml-4">Заметка</h1>
     </header>
     <main class="flex-grow">
-        <textarea id="note-editor-textarea" class="w-full h-full p-4 bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white outline-none resize-none text-lg" placeholder="Введите текст..."></textarea>
+        <div id="note-editor-hero" class="h-full">
+            <textarea id="note-editor-textarea" class="w-full h-full p-4 bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white outline-none resize-none text-lg" placeholder="Введите текст..."></textarea>
+        </div>
     </main>
 </div>
     </div>
-    
+
     <!-- Floating buttons -->
     <button id="add-btn" class="fixed bottom-20 md:bottom-6 right-6 bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 transition-transform transform hover:scale-110 z-20">
         <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
@@ -459,6 +494,7 @@
                     page: document.getElementById('note-editor-page'),
                     backBtn: document.getElementById('note-editor-back-btn'),
                     textarea: document.getElementById('note-editor-textarea'),
+                    hero: document.getElementById('note-editor-hero'),
                 }
             };
 
@@ -487,6 +523,7 @@
 
             // Global UI state
             let isSearchModalOpen = false;
+
 
             // --- Formatters ---
             const currencyFormatter = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 0 });
@@ -573,8 +610,12 @@
                 else if (pageId === 'notes') renderNotes();
                 else if (pageId === 'note-editor') setupNoteEditor(options.noteId);
                 else if (pageId === 'settings') renderDataManagementUI();
-                
+
                 toggleSidebar(false);
+            };
+
+            const openNoteEditor = (noteId = null) => {
+                showPage('note-editor', { noteId });
             };
 
             const createTransactionElement = (tx) => {
@@ -896,7 +937,9 @@
                         card.classList.add('selected');
                     }
                     card.innerHTML = `
-                        <p class="note-content text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">${note.content.substring(0, 200)}${note.content.length > 200 ? '...' : ''}</p>
+                        <div class="note-card-hero">
+                            <p class="note-content text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">${note.content.substring(0, 200)}${note.content.length > 200 ? '...' : ''}</p>
+                        </div>
                         <div class="selection-indicator-wrapper">
                             <div class="selection-indicator-icon">
                                 <svg class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
@@ -909,18 +952,56 @@
 
             const saveCurrentNote = () => {
                 const content = ui.noteEditorPage.textarea.value.trim();
+                const noteIdToTransition = currentNoteId;
+
                 if (content) {
                     if (currentNoteId !== null) {
                         const index = notes.findIndex(n => n.id === currentNoteId);
                         if (index > -1) notes[index].content = content;
                     } else {
-                        notes.push({ id: Date.now(), content: content });
+                        const newNote = { id: Date.now(), content: content };
+                        notes.push(newNote);
+                        currentNoteId = newNote.id;
                     }
                 } else if (currentNoteId !== null) {
                     notes = notes.filter(n => n.id !== currentNoteId);
                 }
+
+                if (!document.startViewTransition || noteIdToTransition === null) {
+                    saveData();
+                    showPage('notes');
+                    currentNoteId = null;
+                    return;
+                }
+
+                const transitionName = `note-card-${noteIdToTransition}`;
+                const editorPage = ui.noteEditorPage.page;
+
+                editorPage.style.setProperty('--transition-name', transitionName);
+                editorPage.setAttribute('data-note-transition-name', '');
+
                 saveData();
-                showPage('notes');
+
+                const transition = document.startViewTransition(() => {
+                    showPage('notes');
+
+                    const targetCard = ui.notesPage.listContainer.querySelector(`[data-note-id="${noteIdToTransition}"]`);
+                    if (targetCard) {
+                        targetCard.style.setProperty('--transition-name', transitionName);
+                        targetCard.setAttribute('data-note-transition-name', '');
+                    }
+                });
+
+                transition.finished.finally(() => {
+                    editorPage.style.removeProperty('--transition-name');
+                    editorPage.removeAttribute('data-note-transition-name');
+                    const targetCard = ui.notesPage.listContainer.querySelector(`[data-note-id="${noteIdToTransition}"]`);
+                    if (targetCard) {
+                        targetCard.style.removeProperty('--transition-name');
+                        targetCard.removeAttribute('data-note-transition-name');
+                    }
+                    currentNoteId = null;
+                });
             }
 
             function enterNotesSelectionMode(noteCard) {
@@ -1349,7 +1430,7 @@
                         }
                         showTransactionModal(displayFilter);
                     } else if (activePageId === 'notes-page') {
-                        showPage('note-editor', { noteId: null });
+                        openNoteEditor(null);
                     }
                 };
                 
@@ -1426,7 +1507,43 @@
                             updateSelectionHeader();
                         }
                     } else {
-                        showPage('note-editor', { noteId: parseInt(targetCard.dataset.noteId) });
+                        // --- НАЧАЛО ИЗМЕНЕНИЙ (ОТКРЫТИЕ) ---
+
+                        // 1. Проверяем, поддерживает ли браузер API
+                        if (!document.startViewTransition) {
+                            showPage('note-editor', { noteId: parseInt(targetCard.dataset.noteId) });
+                            return;
+                        }
+
+                        const noteId = targetCard.dataset.noteId;
+                        const transitionName = `note-card-${noteId}`;
+
+                        // 2. Задаём уникальное имя для перехода на карточке, по которой кликнули
+                        targetCard.style.setProperty('--transition-name', transitionName);
+                        targetCard.setAttribute('data-note-transition-name', '');
+
+
+                        // 3. Запускаем переход
+                        const transition = document.startViewTransition(() => {
+                            // Задаём такое же имя для страницы-редактора
+                            const editorPage = ui.noteEditorPage.page;
+                            editorPage.style.setProperty('--transition-name', transitionName);
+                            editorPage.setAttribute('data-note-transition-name', '');
+
+                            // Выполняем твою обычную логику смены страницы
+                            showPage('note-editor', { noteId: parseInt(noteId) });
+                        });
+
+                        // 4. Очищаем имена после завершения анимации, чтобы не было конфликтов
+                        transition.finished.finally(() => {
+                            targetCard.style.removeProperty('--transition-name');
+                            targetCard.removeAttribute('data-note-transition-name');
+                            const editorPage = ui.noteEditorPage.page;
+                            editorPage.style.removeProperty('--transition-name');
+                            editorPage.removeAttribute('data-note-transition-name');
+                        });
+
+                        // --- КОНЕЦ ИЗМЕНЕНИЙ ---
                     }
                 });
 
