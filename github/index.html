@@ -226,6 +226,24 @@
             user-select: none;
         }
         <!-- [AI-EDIT END: keep-transition] -->
+        <!-- [AI-EDIT START: sidebar-flicker-fix] -->
+        #sidebar {
+            will-change: transform;
+            backface-visibility: hidden;
+            transform: translateZ(0);
+        }
+
+        #sidebar-overlay {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .30s ease-in-out;
+        }
+
+        #sidebar.open + #sidebar-overlay {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        <!-- [AI-EDIT END: sidebar-flicker-fix] -->
     </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
@@ -1417,12 +1435,32 @@
                 showPage('main');
             };
 
+            /* [AI-EDIT START: sidebar-flicker-fix] */
             const toggleSidebar = (forceOpen) => {
                 const isOpen = ui.sidebar.classList.contains('open');
                 const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !isOpen;
+
                 ui.sidebar.classList.toggle('open', shouldOpen);
-                ui.sidebarOverlay.classList.toggle('hidden', !shouldOpen);
+
+                const overlay = ui.sidebarOverlay;
+
+                if (shouldOpen) {
+                    overlay.classList.remove('hidden');
+                    overlay.style.opacity = '0';
+                    void overlay.offsetWidth;
+                    overlay.style.opacity = '1';
+                } else {
+                    const onEnd = (e) => {
+                        if (e.propertyName === 'opacity') {
+                            overlay.classList.add('hidden');
+                            overlay.removeEventListener('transitionend', onEnd);
+                        }
+                    };
+                    overlay.addEventListener('transitionend', onEnd);
+                    overlay.style.opacity = '0';
+                }
             };
+            /* [AI-EDIT END: sidebar-flicker-fix] */
             const applyTheme = (theme) => { if (theme === 'dark') ui.html.classList.add('dark'); else ui.html.classList.remove('dark'); ui.settingsPage.lightThemeBtn.classList.toggle('active', theme === 'light'); ui.settingsPage.darkThemeBtn.classList.toggle('active', theme === 'dark'); localStorage.setItem('finance_theme', theme); };
             
 
@@ -1760,10 +1798,9 @@
                         isDragging = false;
                         ui.sidebar.classList.remove('dragging');
                         ui.sidebar.style.transform = '';
-                        ui.sidebarOverlay.style.opacity = '';
 
                         const threshold = sidebarWidth / 2;
-                        
+
                         if (sidebarWidth > 0 && currentX < -threshold) {
                             toggleSidebar(false);
                         } else if (sidebarWidth > 0) {
