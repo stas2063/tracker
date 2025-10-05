@@ -1234,6 +1234,27 @@
             function updateSelectionHeader() {
                 ui.notesPage.selectionCountSpan.textContent = `Выбрано: ${selectedNoteIds.size}`;
             }
+
+            // --- Toggle Select All Notes ---
+            const selectAllBtn = document.getElementById('select-all-btn');
+            if (selectAllBtn) {
+                let allSelected = false;
+
+                selectAllBtn.addEventListener('click', () => {
+                    allSelected = !allSelected;
+
+                    if (allSelected) {
+                        notes.forEach(note => selectedNoteIds.add(note.id.toString()));
+                        selectAllBtn.textContent = 'СНЯТЬ ВСЕ';
+                    } else {
+                        selectedNoteIds.clear();
+                        selectAllBtn.textContent = 'ВЫБРАТЬ ВСЕ';
+                    }
+
+                    renderNotes();
+                    ui.notesPage.selectionCountSpan.textContent = `Выбрано: ${selectedNoteIds.size}`;
+                });
+            }
             
             const renderPeriodButtons = () => {
                 const customPicker = ui.statsPage.customDateRangePicker;
