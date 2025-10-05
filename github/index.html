@@ -169,10 +169,6 @@
         <!-- [AI-EDIT START: keep-transition] -->
         /* --- Анимация перехода для заметок --- */
 
-        a {
-            -webkit-touch-callout: none;
-        }
-
         .note-card-hero,
         #note-editor-hero {
             view-transition-name: note-hero;
@@ -224,6 +220,11 @@
             }
         }
         /* --- Конец секции анимации --- */
+        a {
+            -webkit-touch-callout: none; /* убирает всплывашку при удержании */
+            -webkit-user-select: none;   /* опционально — запрет выделения */
+            user-select: none;
+        }
         <!-- [AI-EDIT END: keep-transition] -->
     </style>
 </head>
