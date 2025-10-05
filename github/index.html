@@ -233,10 +233,11 @@
             transform: translateZ(0);
         }
 
-        #sidebar-overlay {
+        #sidebar-overlay,
+        .sidebar-overlay {
             opacity: 0;
             pointer-events: none;
-            transition: opacity .30s ease-in-out;
+            transition: opacity .2s ease;
         }
 
         #sidebar.open + #sidebar-overlay {
@@ -265,7 +266,7 @@
             </a>
         </nav>
     </aside>
-    <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden"></div>
+    <div id="sidebar-overlay" class="sidebar-overlay fixed inset-0 bg-black bg-opacity-50 z-30 hidden"></div>
 
     <div id="page-container" class="h-full opacity-0 transition-opacity duration-300">
         <!-- Main page -->
