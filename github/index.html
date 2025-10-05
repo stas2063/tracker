@@ -1235,26 +1235,28 @@
                 ui.notesPage.selectionCountSpan.textContent = `Выбрано: ${selectedNoteIds.size}`;
             }
 
-            // --- Toggle Select All Notes ---
-            const selectAllBtn = document.getElementById('select-all-btn');
-            if (selectAllBtn) {
-                let allSelected = false;
+            // Выбрать все / снять выделение по повторному клику
+            document.getElementById("select-all-btn").addEventListener("click", () => {
+                const noteCards = ui.notesPage.listContainer.querySelectorAll(".note-card");
+                const allSelected = [...noteCards].length > 0 && [...noteCards].every(card => card.classList.contains("selected"));
 
-                selectAllBtn.addEventListener('click', () => {
-                    allSelected = !allSelected;
+                if (allSelected) {
+                    // Снять выделение со всех
+                    selectedNoteIds.clear();
+                    noteCards.forEach(card => card.classList.remove("selected"));
+                } else {
+                    // Выделить все
+                    selectedNoteIds.clear();
+                    noteCards.forEach(card => {
+                        const id = card.dataset.noteId;
+                        selectedNoteIds.add(id);
+                        card.classList.add("selected");
+                    });
+                }
 
-                    if (allSelected) {
-                        notes.forEach(note => selectedNoteIds.add(note.id.toString()));
-                        selectAllBtn.textContent = 'СНЯТЬ ВСЕ';
-                    } else {
-                        selectedNoteIds.clear();
-                        selectAllBtn.textContent = 'ВЫБРАТЬ ВСЕ';
-                    }
-
-                    renderNotes();
-                    ui.notesPage.selectionCountSpan.textContent = `Выбрано: ${selectedNoteIds.size}`;
-                });
-            }
+                // обновляем счётчик
+                ui.notesPage.selectionCountSpan.textContent = `Выбрано: ${selectedNoteIds.size}`;
+            });
             
             const renderPeriodButtons = () => {
                 const customPicker = ui.statsPage.customDateRangePicker;
