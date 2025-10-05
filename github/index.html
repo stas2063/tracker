@@ -1,0 +1,1676 @@
+<!DOCTYPE html>
+<html lang="ru" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Финансовый трекер</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#3B82F6"/>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Трекер">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = { darkMode: 'class' }
+    </script>
+    <style>
+        html, body { height: 100%; overflow: hidden; }
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
+        .page { height: 100%; display: flex; flex-direction: column; }
+        main { overflow-y: auto; position: relative; }
+        .date-scroller::-webkit-scrollbar, .account-scroller::-webkit-scrollbar { display: none; }
+        .date-scroller, .account-scroller { -ms-overflow-style: none; scrollbar-width: none; }
+        .day-btn.active, .account-btn.active, .period-btn.active { background-color: #3B82F6; color: white; font-weight: 700; }
+        .dark .day-btn.active, .dark .account-btn.active, .dark .period-btn.active { background-color: #60A5FA; }
+        .day-btn.has-data::after { content: ''; position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); width: 5px; height: 5px; border-radius: 50%; background-color: #3B82F6; }
+        .dark .day-btn.has-data::after { background-color: #60A5FA; }
+        .day-btn.active.has-data::after { background-color: white; }
+        
+        .tab-btn, .stats-tab-btn { transition: all 0.2s ease-in-out; cursor: pointer; }
+        .tab-btn.active, .stats-tab-btn.active { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .dark .tab-btn.active, .dark .stats-tab-btn.active { box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        
+        .tab-btn.income.active, .stats-tab-btn.income.active { background-color: #16A34A; color: white; }
+        .tab-btn.expense.active, .stats-tab-btn.expense.active { background-color: #DC2626; color: white; }
+        
+        .stats-tab-btn.income.active p, .stats-tab-btn.expense.active p { color: white; }
+
+        #sidebar { 
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-in-out;
+        }
+        #sidebar.dragging {
+            transition: none;
+        }
+        #sidebar.open { 
+            transform: translateX(0); 
+        }
+        #sidebar-overlay { transition: opacity 0.3s ease-in-out; }
+        .theme-btn.active { background-color: #3B82F6; color: white; }
+        .dark .theme-btn.active { background-color: #60A5FA; }
+        .transaction-item.selected { background-color: #DBEAFE; }
+        .dark .transaction-item.selected { background-color: #1E3A8A; }
+        /* --- Note Card Refactor --- */
+        .note-card {
+            display: flex;
+            align-items: center;
+            transition: background-color 0.15s ease-in-out;
+            padding: 12px;
+            background-color: #f9fafb;
+            border-radius: 16px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+        .dark .note-card {
+            background-color: #1f2937;
+        }
+
+        .note-content {
+            flex-grow: 1;
+            /* Using logical property for RTL support */
+            padding-inline-end: 16px;
+        }
+
+        .selection-indicator-wrapper {
+            flex-shrink: 0;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.8);
+            transition: opacity 160ms ease, transform 160ms ease;
+        }
+
+        .selection-indicator-icon {
+            width: 24px; /* w-6 */
+            height: 24px; /* h-6 */
+            background-color: #3B82F6; /* bg-blue-500 */
+            border-radius: 9999px; /* rounded-full */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #fff; /* border-2 border-white */
+        }
+        .dark .selection-indicator-icon {
+            border-color: #1f2937; /* dark:border-gray-800 */
+        }
+
+        .note-card.selected .selection-indicator-wrapper {
+            opacity: 1;
+            pointer-events: auto;
+            transform: scale(1);
+        }
+        
+        .note-card.selected {
+            background-color: #DBEAFE; /* light mode selection color */
+        }
+        .dark .note-card.selected {
+            background-color: #1E3A8A; /* dark mode selection color */
+        }
+        /* --- End Note Card Refactor --- */
+        .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #3B82F6; animation: spin 1s ease infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .voice-btn.listening { color: #3B82F6; }
+        .dark .voice-btn.listening { color: #60A5FA; }
+        #search-modal { transition: opacity 0.3s ease-in-out; }
+        .dr-day { text-align: center; padding: 0.5rem; border-radius: 50%; cursor: pointer; }
+        .dr-day.other-month { color: #9ca3af; } /* gray-400 */
+        .dr-day.in-range { background-color: #dbeafe; border-radius: 0; } /* blue-100 */
+        .dark .dr-day.in-range { background-color: #1e3a8a; } /* blue-900 */
+        .dr-day.start-range, .dr-day.end-range { background-color: #3b82f6; color: white; } /* blue-600 */
+        .dark .dr-day.start-range, .dark .dr-day.end-range { background-color: #60a5fa; } /* blue-400 */
+        .dr-day.start-range.end-range { border-radius: 50%; }
+        .dr-day.start-range:not(.end-range) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+        .dr-day.end-range:not(.start-range) { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+
+        #notification {
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            transform: translateY(200%);
+            opacity: 0;
+        }
+        #notification.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        
+        @keyframes slide-out-left { from { transform: translateX(0); } to { transform: translateX(-100vw); } }
+        .slide-out-left { animation: slide-out-left 0.25s ease-in forwards; }
+
+        @keyframes slide-in-from-right { from { transform: translateX(100vw); } to { transform: translateX(0); } }
+        .slide-in-from-right { animation: slide-in-from-right 0.25s ease-out forwards; }
+
+        @keyframes slide-out-right { from { transform: translateX(0); } to { transform: translateX(100vw); } }
+        .slide-out-right { animation: slide-out-right 0.25s ease-in forwards; }
+
+        @keyframes slide-in-from-left { from { transform: translateX(-100vw); } to { transform: translateX(0); } }
+        .slide-in-from-left { animation: slide-in-from-left 0.25s ease-out forwards; }
+        
+        /* Добавляем безопасную зону для верхней панели */
+        .page > header {
+            padding-top: calc(env(safe-area-inset-top) + 1rem);
+        }
+
+        /* Убедимся, что модальное окно занимает всю высоту и корректно обрабатывает клавиатуру */
+        #transaction-modal {
+            padding-bottom: env(safe-area-inset-bottom, 0);
+        }
+
+        #search-modal {
+            padding-top: calc(env(safe-area-inset-top) + 2rem);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+
+    <div id="loading-overlay" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 flex items-center justify-center z-50">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="fixed top-0 left-0 h-full w-72 bg-white dark:bg-gray-800 shadow-lg z-40 p-6 flex flex-col">
+        <h2 class="text-2xl font-bold mb-8 text-gray-900 dark:text-white">Меню</h2>
+        <nav class="flex flex-col space-y-2">
+            <a href="#" data-page="main" class="nav-link flex items-center space-x-3 text-lg p-3 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg><span>Главная</span></a>
+            <a href="#" data-page="stats" class="nav-link flex items-center space-x-3 text-lg p-3 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2-2H9a2 2 0 01-2-2V5z"/></svg><span>Статистика</span></a>
+            <a href="#" data-page="settings" class="nav-link flex items-center space-x-3 text-lg p-3 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg><span>Настройки</span></a>
+            <a href="#" data-page="notes" class="nav-link flex items-center space-x-3 text-lg p-3 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                <span>Заметки</span>
+            </a>
+        </nav>
+    </aside>
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden"></div>
+
+    <div id="page-container" class="h-full opacity-0 transition-opacity duration-300">
+        <!-- Main page -->
+        <div id="main-page" class="page">
+            <header class="bg-blue-600 text-white px-2 py-4 shadow-md z-10 shrink-0">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-1 min-w-0">
+                        
+                        <h1 id="month-year-main" class="text-sm font-semibold whitespace-nowrap truncate ml-12"></h1>
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        <button id="prev-month-main" class="p-2 rounded-full hover:bg-blue-700"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg></button>
+                        <button id="next-month-main" class="p-2 rounded-full hover:bg-blue-700"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg></button>
+                        <button id="search-btn-main" class="p-2 rounded-full hover:bg-blue-700 flex-shrink-0"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></button>
+                        <label for="date-picker-input" class="p-2 rounded-full hover:bg-blue-700 cursor-pointer"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></label>
+                    </div>
+                </div>
+            </header>
+            <div class="shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 z-10">
+                <div id="date-scroller-main" class="date-scroller flex overflow-x-auto space-x-2 p-2"></div>
+            </div>
+            <main class="flex-grow p-4 space-y-4">
+                <div class="grid grid-cols-2 gap-4"><button id="income-tab" data-type="income" class="tab-btn income bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 p-4 rounded-xl shadow-sm text-left"><p class="text-sm font-medium">Доходы</p><p id="daily-income" class="text-2xl font-bold">0 ₽</p></button><button id="expense-tab" data-type="expense" class="tab-btn expense bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 p-4 rounded-xl shadow-sm text-left"><p class="text-sm font-medium">Расходы</p><p id="daily-expense" class="text-2xl font-bold">0 ₽</p></button></div>
+                <div id="transactions-list" class="space-y-2 pb-20"></div>
+                <div id="no-transactions" class="text-center text-gray-500 dark:text-gray-400 py-10 hidden"><p>Нет операций</p></div>
+            </main>
+        </div>
+
+        <!-- Statistics page -->
+        <div id="stats-page" class="page hidden">
+            <header class="bg-blue-600 text-white px-2 py-4 shadow-md z-10 shrink-0">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-1 min-w-0">
+                        
+                        <h1 id="month-year-stats" class="text-sm font-semibold whitespace-nowrap truncate ml-12"></h1>
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        <button id="prev-month-stats" class="p-2 rounded-full hover:bg-blue-700"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg></button>
+                        <button id="next-month-stats" class="p-2 rounded-full hover:bg-blue-700"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg></button>
+                        <button id="search-btn-stats" class="p-2 rounded-full hover:bg-blue-700 flex-shrink-0"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></button>
+                        <label for="date-picker-input" class="p-2 rounded-full hover:bg-blue-700 cursor-pointer"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></label>
+                    </div>
+                </div>
+            </header>
+            <div class="shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 z-10">
+                <div id="date-scroller-stats" class="date-scroller flex overflow-x-auto space-x-2 p-2"></div>
+            </div>
+            <main class="flex-grow p-4">
+                <div class="flex justify-center p-1 rounded-lg bg-gray-200 dark:bg-gray-700 mb-6"><button data-period="day" class="period-btn flex-1 p-2 rounded-md text-sm font-semibold">День</button><button data-period="month" class="period-btn flex-1 p-2 rounded-md text-sm font-semibold">Месяц</button><button data-period="year" class="period-btn flex-1 p-2 rounded-md text-sm font-semibold">Год</button><button data-period="custom" class="period-btn flex-1 p-2 rounded-md text-sm font-semibold">Период</button></div>
+                <div id="custom-date-range-picker" class="hidden mt-4 bg-gray-100 dark:bg-gray-800 p-4 rounded-lg mb-6">
+                    <div class="grid grid-cols-[auto_1fr] items-center gap-4">
+                        <label for="start-date-picker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Нач:</label>
+                        <input type="date" id="start-date-picker" class="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-900 dark:text-white">
+
+                        <label for="end-date-picker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Кон:</label>
+                        <input type="date" id="end-date-picker" class="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-900 dark:text-white">
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div id="stats-income-tab" class="stats-tab-btn income p-4 rounded-lg bg-green-100 dark:bg-green-900/50 text-center">
+                            <p class="text-sm text-green-800 dark:text-green-300">Общий доход</p>
+                            <p id="stats-income" class="text-3xl font-bold text-green-600 dark:text-green-400">0 ₽</p>
+                        </div>
+                        <div id="stats-expense-tab" class="stats-tab-btn expense p-4 rounded-lg bg-red-100 dark:bg-red-900/50 text-center">
+                            <p class="text-sm text-red-800 dark:text-red-300">Общий расход</p>
+                            <p id="stats-expense" class="text-3xl font-bold text-red-600 dark:text-red-400">0 ₽</p>
+                        </div>
+                    </div>
+                    <div class="p-4 rounded-lg bg-gray-100 dark:bg-gray-700 text-center">
+                        <p class="text-sm text-gray-600 dark:text-gray-300">Баланс</p>
+                        <p id="stats-balance" class="text-3xl font-bold text-gray-800 dark:text-gray-100">0 ₽</p>
+                    </div>
+                </div>
+                <div id="stats-transactions-list" class="mt-6 space-y-2 pb-20"></div>
+                <div id="no-stats-transactions" class="text-center text-gray-500 dark:text-gray-400 py-10 hidden"><p>Нет операций за выбранный период</p></div>
+            </main>
+        </div>
+        
+        <!-- Settings page -->
+        <div id="settings-page" class="page hidden">
+            <header class="bg-blue-600 text-white p-4 shadow-md z-10 shrink-0"><div class="flex items-center space-x-2"><h1 class="text-xl font-bold">Настройки</h1></div></header>
+            <main class="flex-grow p-6 space-y-8">
+                <div><h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase">Тема</h3><div class="flex gap-2"><button id="light-theme-btn" class="theme-btn flex-1 p-3 rounded-lg bg-gray-200 dark:bg-gray-700">Светлая</button><button id="dark-theme-btn" class="theme-btn flex-1 p-3 rounded-lg bg-gray-200 dark:bg-gray-700">Тёмная</button></div></div>
+
+                <div><h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase">Управление данными</h3><div id="data-management-container" class="space-y-2"></div></div>
+            </main>
+        </div>
+<div id="notes-page" class="page hidden">
+    <header class="bg-white dark:bg-gray-800 p-3 shadow-md z-10 shrink-0 border-b border-gray-200 dark:border-gray-700">
+    <div id="notes-normal-header" class="flex items-center w-full bg-gray-100 dark:bg-gray-700 rounded-full h-12">
+        <button id="notes-menu-btn" class="p-3 text-gray-500 dark:text-gray-400">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+        <input type="text" id="notes-search-input" placeholder="Поиск" class="w-full h-full bg-transparent pr-4 outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400">
+    </div>
+
+    <div id="notes-selection-header" class="hidden items-center w-full h-12">
+        <button id="selection-exit-btn" class="p-3 text-gray-500 dark:text-gray-400">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+        <span id="selection-count" class="text-lg font-semibold text-gray-800 dark:text-white mx-4">Выбрано: 1</span>
+        <div class="flex-grow"></div> <button id="select-all-btn" class="p-3 font-semibold text-sm text-blue-600 dark:text-blue-400">ВЫБРАТЬ ВСЕ</button>
+        <button id="delete-selected-btn-notes" class="p-3 text-gray-500 dark:text-gray-400">
+             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+        </button>
+    </div>
+</header>
+    <main class="flex-grow p-4 relative">
+        <div id="notes-list-container" class="space-y-4 pb-20">
+            </div>
+        <div id="no-notes-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-center text-gray-400 dark:text-gray-500 pointer-events-none">
+            <svg class="h-24 w-24 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+            <p class="mt-4 text-lg">Здесь будут ваши заметки</p>
+        </div>
+    </main>
+</div>
+<div id="note-editor-page" class="page hidden">
+    <header class="bg-blue-600 text-white p-2 shadow-md z-10 shrink-0 flex items-center">
+        <button id="note-editor-back-btn" class="p-2 rounded-full" style="visibility: hidden;">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+        </button>
+        <h1 class="text-xl font-bold ml-4">Заметка</h1>
+    </header>
+    <main class="flex-grow">
+        <textarea id="note-editor-textarea" class="w-full h-full p-4 bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white outline-none resize-none text-lg" placeholder="Введите текст..."></textarea>
+    </main>
+</div>
+    </div>
+    
+    <!-- Floating buttons -->
+    <button id="add-btn" class="fixed bottom-20 md:bottom-6 right-6 bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 transition-transform transform hover:scale-110 z-20">
+        <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12M6 12h12" />
+        </svg>
+    </button>
+    <button id="delete-selected-btn" class="hidden fixed bottom-20 md:bottom-6 right-6 bg-red-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-red-700 transition-all transform z-20"><svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+
+    <div id="transaction-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50"></div>
+    <div id="confirm-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50"></div>
+    
+    <!-- Search Modal -->
+    <div id="search-modal" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-50 p-4 flex-col hidden">
+        <div class="flex-shrink-0 flex items-center mb-4">
+            <input type="text" id="search-input" placeholder="Поиск по сумме или описанию..." class="w-full px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 outline-none">
+            <button id="close-search-btn" class="ml-2 flex-shrink-0 px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600">Закрыть</button>
+        </div>
+        <div id="search-results" class="flex-grow overflow-y-auto space-y-2">
+            <!-- Search results will be injected here -->
+        </div>
+        <div id="no-search-results" class="text-center text-gray-500 dark:text-gray-400 py-10 hidden">
+            <p>Ничего не найдено</p>
+        </div>
+    </div>
+    
+    <input type="date" id="date-picker-input" class="absolute opacity-0 w-0 h-0">
+    <input type="file" id="import-file-input" class="hidden" accept=".json">
+
+    <!-- Date Range Picker Modal -->
+    <div id="date-range-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-4 w-full max-w-sm shadow-xl">
+            <div id="date-range-calendar-header" class="flex justify-between items-center mb-4">
+                <button id="dr-prev-month" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg></button>
+                <h3 id="dr-month-year" class="text-lg font-semibold"></h3>
+                <button id="dr-next-month" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg></button>
+            </div>
+            <div id="dr-weekdays" class="grid grid-cols-7 text-center text-xs text-gray-500 mb-2">
+                <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+            </div>
+            <div id="dr-days-grid" class="grid grid-cols-7 gap-1">
+                <!-- Calendar days will be injected here -->
+            </div>
+            <div class="flex justify-end gap-4 mt-4">
+                <button id="dr-cancel-btn" class="bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">Отмена</button>
+                <button id="dr-apply-btn" class="text-white font-bold py-2 px-4 rounded-lg bg-blue-500 hover:bg-blue-600">Применить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="fixed bottom-6 left-6 right-24 md:w-auto md:right-auto md:left-1/2 md:-translate-x-1/2 px-6 py-3 rounded-lg text-white shadow-lg z-50">
+        <p id="notification-text"></p>
+    </div>
+
+    <script>
+        // --- PWA Setup Script ---
+        // Create Manifest dynamically for "Add to Home Screen"
+        const manifest = {
+            "name": "Финансовый трекер",
+            "short_name": "Трекер",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#f3f4f6",
+            "theme_color": "#3B82F6",
+            "description": "Простое приложение для отслеживания личных финансов.",
+            "icons": [{
+                "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgZmlsbD0iIzNCODJGNiIgcng9IjY0Ii8+PHBhdGggZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRkZGRkZGIiBzdHJva2Utd2lkdGg9IjMyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGQ9Ik0xNjAgMTQ0aDI1Nm0tMjU2IDEyOGgyNTZtLTI1Ni02NGgxOTJhNDggNDggMCAwIDEgMCA5NkgxNjAiLz48L3N2Zz4=",
+                "sizes": "512x512",
+                "type": "image/svg+xml",
+                "purpose": "any maskable"
+            }]
+        };
+        const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+        const manifestUrl = URL.createObjectURL(manifestBlob);
+        const manifestLink = document.createElement('link');
+        manifestLink.rel = 'manifest';
+        manifestLink.href = manifestUrl;
+        document.head.appendChild(manifestLink);
+        
+        const icon = `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgZmlsbD0iIzNCODJGNiIgcng9IjY0Ii8+PHBhdGggZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRkZGRkZGIiBzdHJva2Utd2lkdGg9IjMyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGQ9Ik0xNjAgMTQ0aDI1Nm0tMjU2IDEyOGgyNTZtLTI1Ni02NGgxOTJhNDggNDggMCAwIDEgMCA5NkgxNjAiLz48L3N2Zz4=`;
+        const appleIconLink = document.createElement('link');
+        appleIconLink.rel = 'apple-touch-icon';
+        appleIconLink.href = icon;
+        document.head.appendChild(appleIconLink);
+        // NOTE: Service Worker registration from a blob URL is not allowed by browsers for security reasons.
+        // Therefore, the automatic "Add to Home Screen" prompt will not appear in this environment.
+        // Users can still manually add the app to their home screen.
+
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            const ui = {
+                html: document.documentElement,
+                loadingOverlay: document.getElementById('loading-overlay'),
+                pageContainer: document.getElementById('page-container'),
+                addBtn: document.getElementById('add-btn'),
+                deleteSelectedBtn: document.getElementById('delete-selected-btn'),
+                transactionModal: document.getElementById('transaction-modal'),
+                confirmModal: document.getElementById('confirm-modal'),
+                datePicker: document.getElementById('date-picker-input'),
+                sidebar: document.getElementById('sidebar'),
+                sidebarOverlay: document.getElementById('sidebar-overlay'),
+                navLinks: document.querySelectorAll('.nav-link'),
+                searchModal: document.getElementById('search-modal'),
+                searchInput: document.getElementById('search-input'),
+                searchResults: document.getElementById('search-results'),
+                noSearchResults: document.getElementById('no-search-results'),
+                closeSearchBtn: document.getElementById('close-search-btn'),
+                importFileInput: document.getElementById('import-file-input'),
+                notification: document.getElementById('notification'),
+                notificationText: document.getElementById('notification-text'),
+                mainPage: { page: document.getElementById('main-page'), searchBtn: document.getElementById('search-btn-main'), monthYear: document.getElementById('month-year-main'), prevMonthBtn: document.getElementById('prev-month-main'), nextMonthBtn: document.getElementById('next-month-main'), dateScroller: document.getElementById('date-scroller-main'), incomeTab: document.getElementById('income-tab'), expenseTab: document.getElementById('expense-tab'), dailyIncome: document.getElementById('daily-income'), dailyExpense: document.getElementById('daily-expense'), transactionsList: document.getElementById('transactions-list'), noTransactions: document.getElementById('no-transactions'), },
+                statsPage: { 
+                    page: document.getElementById('stats-page'), 
+                    searchBtn: document.getElementById('search-btn-stats'),
+                    monthYear: document.getElementById('month-year-stats'), 
+                    prevMonthBtn: document.getElementById('prev-month-stats'), 
+                    nextMonthBtn: document.getElementById('next-month-stats'), 
+                    dateScroller: document.getElementById('date-scroller-stats'), 
+                    periodBtnsContainer: document.querySelector('#stats-page .flex.justify-center'), 
+                    income: document.getElementById('stats-income'), 
+                    expense: document.getElementById('stats-expense'), 
+                    balance: document.getElementById('stats-balance'),
+                    incomeTab: document.getElementById('stats-income-tab'),
+                    expenseTab: document.getElementById('stats-expense-tab'),
+                    transactionsList: document.getElementById('stats-transactions-list'),
+                    noTransactions: document.getElementById('no-stats-transactions'), customDateRangePicker: document.getElementById('custom-date-range-picker'), startDatePicker: document.getElementById('start-date-picker'), endDatePicker: document.getElementById('end-date-picker'),
+                },
+                settingsPage: { page: document.getElementById('settings-page'), lightThemeBtn: document.getElementById('light-theme-btn'), darkThemeBtn: document.getElementById('dark-theme-btn'), syncStatusContainer: document.getElementById('sync-status-container'), dataManagementContainer: document.getElementById('data-management-container'), },
+                notesPage: {
+                    page: document.getElementById('notes-page'),
+                    menuBtn: document.getElementById('notes-menu-btn'),
+                    searchInput: document.getElementById('notes-search-input'),
+                    listContainer: document.getElementById('notes-list-container'),
+                    noNotesPlaceholder: document.getElementById('no-notes-placeholder'),
+                    normalHeader: document.getElementById('notes-normal-header'),
+                    selectionHeader: document.getElementById('notes-selection-header'),
+                    selectionCountSpan: document.getElementById('selection-count'),
+                },
+                noteEditorPage: {
+                    page: document.getElementById('note-editor-page'),
+                    backBtn: document.getElementById('note-editor-back-btn'),
+                    textarea: document.getElementById('note-editor-textarea'),
+                }
+            };
+
+            // --- Global State ---
+            let mainCurrentDate, mainSelectedDate, statsCurrentDate, statsSelectedDate;
+            let appData = {};
+            let accounts = { 'acc1': 'Основной' };
+            let currentAccountId = 'acc1';
+            
+            // Main page state
+            let displayFilter = 'all';
+            let isSelectionMode = false;
+            let selectedTxIds = new Set();
+
+            // Stats page state
+            let statsDisplayFilter = 'all';
+            let activeStatsPeriod = 'month', statsStartDate = null, statsEndDate = null;
+            
+            // Notes page state
+            let notes = [];
+            let currentNoteId = null;
+            let isNotesSearchActive = false;
+            let isNotesSelectionMode = false;
+            let selectedNoteIds = new Set();
+            let notesPressTimer = null;
+
+            // Global UI state
+            let isSearchModalOpen = false;
+
+            // --- Formatters ---
+            const currencyFormatter = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 0 });
+            const monthFormatter = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric' });
+            const dateFormatter = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+            
+            // --- Utility Functions ---
+            const getDateString = (date) => {
+                const year = date.getFullYear();
+                const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                const day = date.getDate().toString().padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
+            
+            const resetToToday = () => {
+                const today = new Date();
+                mainCurrentDate = new Date(today);
+                mainSelectedDate = new Date(today);
+                statsCurrentDate = new Date(today);
+                statsSelectedDate = new Date(today);
+            };
+
+            // --- Data Persistence ---
+            const saveData = () => {
+                appData.meta = { displayFilter, statsDisplayFilter, currentAccountId, activeStatsPeriod, statsStartDate, statsEndDate };
+                appData.accounts = accounts;
+                appData.notes = notes;
+                localStorage.setItem('finance_app_data', JSON.stringify(appData));
+                const activePageId = document.querySelector('.page:not(.hidden)')?.id;
+                if (activePageId === 'main-page') renderMainUI();
+                else if (activePageId === 'stats-page') renderStatsUI();
+                else if (activePageId === 'notes-page') renderNotes();
+            };
+            
+            const loadData = () => {
+                const savedData = localStorage.getItem('finance_app_data');
+                appData = savedData ? JSON.parse(savedData) : { transactions: {}, meta: {}, accounts: { 'acc1': 'Основной' }, notes: [] };
+                accounts = appData.accounts || { 'acc1': 'Основной' };
+                notes = appData.notes || [];
+                const meta = appData.meta || {};
+                displayFilter = meta.displayFilter || 'all';
+                statsDisplayFilter = meta.statsDisplayFilter || 'all';
+                currentAccountId = meta.currentAccountId || 'acc1';
+                activeStatsPeriod = meta.activeStatsPeriod || 'month';
+                statsStartDate = meta.statsStartDate ? new Date(meta.statsStartDate) : null;
+                statsEndDate = meta.statsEndDate ? new Date(meta.statsEndDate) : null;
+            };
+
+            // --- UI Rendering & Page Logic ---
+
+            const setupNoteEditor = (noteId = null) => {
+                currentNoteId = noteId;
+                if (noteId !== null) {
+                    const note = notes.find(n => n.id === noteId);
+                    ui.noteEditorPage.textarea.value = note ? note.content : '';
+                } else {
+                    ui.noteEditorPage.textarea.value = '';
+                }
+                ui.noteEditorPage.textarea.focus();
+            };
+
+            const showPage = (pageId, options = {}) => {
+                const currentPage = document.querySelector('.page:not(.hidden)');
+                if (currentPage) {
+                    if (currentPage.id === 'notes-page' && isNotesSelectionMode) {
+                        exitNotesSelectionMode();
+                    }
+                    if (currentPage.id === 'main-page' && isSelectionMode) {
+                        toggleSelectionMode(false);
+                    }
+                }
+
+                document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+                const pageElement = document.getElementById(`${pageId}-page`);
+                if (pageElement) {
+                    pageElement.classList.remove('hidden');
+                }
+
+                const isFabVisible = (pageId === 'main' && !isSelectionMode) || (pageId === 'notes' && !isNotesSelectionMode);
+                ui.addBtn.classList.toggle('hidden', !isFabVisible || isSearchModalOpen);
+
+                if (pageId === 'main') renderMainUI();
+                else if (pageId === 'stats') renderStatsUI();
+                else if (pageId === 'notes') renderNotes();
+                else if (pageId === 'note-editor') setupNoteEditor(options.noteId);
+                else if (pageId === 'settings') renderDataManagementUI();
+                
+                toggleSidebar(false);
+            };
+
+            const createTransactionElement = (tx) => {
+                const isIncome = tx.type === 'income';
+                const txEl = document.createElement('div');
+                txEl.className = `transaction-item flex items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 shadow-sm border-l-4 ${isIncome ? 'border-green-500' : 'border-red-500'}`;
+                txEl.dataset.txId = tx.id;
+                const checkboxHTML = isSelectionMode ? `<input type="checkbox" class="tx-checkbox h-5 w-5 rounded mr-4 text-blue-600 focus:ring-blue-500 pointer-events-none" data-id="${tx.id}" ${selectedTxIds.has(tx.id) ? 'checked' : ''}>` : '';
+                const deleteButtonHTML = !isSelectionMode ? `<button data-id="${tx.id}" class="delete-btn text-gray-400 hover:text-red-500"><svg class="h-5 w-5 pointer-events-none" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg></button>` : '';
+                txEl.innerHTML = `${checkboxHTML}<div class="flex-grow min-w-0"><p class="font-semibold text-gray-800 dark:text-gray-200 break-words">${tx.desc}</p></div><div class="flex items-center gap-4"><p class="font-bold text-lg ${isIncome ? 'text-green-500' : 'text-red-500'}">${currencyFormatter.format(tx.amount)}</p>${deleteButtonHTML}</div>`;
+                return txEl;
+            };
+            
+            const toggleSelectionMode = (forceState) => {
+                isSelectionMode = typeof forceState === 'boolean' ? forceState : !isSelectionMode;
+                selectedTxIds.clear();
+                ui.addBtn.classList.toggle('hidden', isSelectionMode);
+                ui.deleteSelectedBtn.classList.add('hidden');
+                renderTransactionsForSelectedDate();
+            };
+
+            const renderTransactionsForSelectedDate = () => {
+                const { transactionsList, dailyIncome, dailyExpense, noTransactions } = ui.mainPage;
+                transactionsList.innerHTML = '';
+                const unfilteredTxs = ((appData.transactions || {})[currentAccountId] || {})[getDateString(mainSelectedDate)] || [];
+                let incomeTotal = 0, expenseTotal = 0;
+                unfilteredTxs.forEach(tx => { if (tx.type === 'income') incomeTotal += tx.amount; else expenseTotal += tx.amount; });
+                dailyIncome.textContent = currencyFormatter.format(incomeTotal);
+                dailyExpense.textContent = currencyFormatter.format(expenseTotal);
+                noTransactions.classList.toggle('hidden', unfilteredTxs.length > 0);
+                const controlsContainer = document.createElement('div');
+                controlsContainer.className = 'flex items-center justify-between mb-2';
+                controlsContainer.innerHTML = isSelectionMode ? `<div class="flex items-center"><input type="checkbox" id="select-all-checkbox" class="h-5 w-5 rounded text-blue-600 focus:ring-blue-500"><label for="select-all-checkbox" class="ml-2 text-sm font-medium">Выбрать все</label></div><button id="finish-selection-btn" class="text-sm font-semibold text-blue-600 hover:underline">Готово</button>` : `<button id="start-selection-btn" class="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:underline"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span>Выбрать</span></button>`;
+                if (unfilteredTxs.length > 0) {
+                    transactionsList.appendChild(controlsContainer);
+                    if (isSelectionMode) {
+                        document.getElementById('finish-selection-btn').onclick = () => toggleSelectionMode(false);
+                        document.getElementById('select-all-checkbox').onchange = (e) => {
+                            const isChecked = e.target.checked;
+                            transactionsList.querySelectorAll('.tx-checkbox').forEach(cb => { cb.checked = isChecked; });
+                            transactionsList.querySelectorAll('.transaction-item').forEach(item => {
+                                const txId = parseInt(item.dataset.txId);
+                                item.classList.toggle('selected', isChecked);
+                                if (isChecked) selectedTxIds.add(txId); else selectedTxIds.delete(txId);
+                            });
+                            ui.deleteSelectedBtn.classList.toggle('hidden', selectedTxIds.size === 0);
+                        };
+                    } else { document.getElementById('start-selection-btn').onclick = () => toggleSelectionMode(true); }
+                }
+                let filteredTxs = unfilteredTxs;
+                if (displayFilter !== 'all') filteredTxs = filteredTxs.filter(tx => tx.type === displayFilter);
+                if (displayFilter === 'all') {
+                    const incomeTxs = filteredTxs.filter(tx => tx.type === 'income').sort((a, b) => b.id - a.id);
+                    const expenseTxs = filteredTxs.filter(tx => tx.type === 'expense').sort((a, b) => b.id - a.id);
+                    if (incomeTxs.length > 0) { const header = document.createElement('h3'); header.className = 'text-sm font-semibold text-gray-500 dark:text-gray-400 mt-4 mb-2'; header.textContent = 'Доходы'; transactionsList.appendChild(header); incomeTxs.forEach(tx => transactionsList.appendChild(createTransactionElement(tx))); }
+                    if (expenseTxs.length > 0) { const header = document.createElement('h3'); header.className = 'text-sm font-semibold text-gray-500 dark:text-gray-400 mt-4 mb-2'; header.textContent = 'Расходы'; transactionsList.appendChild(header); expenseTxs.forEach(tx => transactionsList.appendChild(createTransactionElement(tx))); }
+                } else { filteredTxs.sort((a, b) => b.id - a.id).forEach(tx => transactionsList.appendChild(createTransactionElement(tx))); }
+            };
+
+            const renderMainUI = () => { renderCalendar(ui.mainPage, mainCurrentDate, mainSelectedDate, (newDate) => { mainSelectedDate = newDate; renderMainUI(); }); renderTransactionsForSelectedDate(); updateActiveTabStyles(); };
+            const renderStatsUI = () => { 
+                renderCalendar(ui.statsPage, statsCurrentDate, statsSelectedDate, (newDate) => { statsSelectedDate = newDate; renderStatsUI(); }); 
+                renderPeriodButtons(); 
+                if (ui.statsPage.startDatePicker) {
+                    ui.statsPage.startDatePicker.value = statsStartDate ? getDateString(statsStartDate) : '';
+                }
+                if (ui.statsPage.endDatePicker) {
+                    ui.statsPage.endDatePicker.value = statsEndDate ? getDateString(statsEndDate) : '';
+                }
+                renderStatistics(); 
+                renderStatsTransactionsList(); 
+                updateStatsActiveTabStyles(); 
+            };
+            const renderCalendar = (pageUI, currentDate, selectedDate, onSelectCallback) => {
+                pageUI.dateScroller.innerHTML = '';
+                const year = currentDate.getFullYear(); const month = currentDate.getMonth();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const monthName = monthFormatter.format(currentDate).replace(' г.', '');
+                pageUI.monthYear.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+                const currentAccountTransactions = (appData.transactions || {})[currentAccountId] || {};
+                for (let i = 1; i <= daysInMonth; i++) {
+                    const loopDate = new Date(year, month, i);
+                    const dayBtn = document.createElement('button');
+                    dayBtn.textContent = i;
+                    dayBtn.className = 'day-btn relative flex-shrink-0 w-12 h-12 rounded-full transition-colors font-medium';
+                    if (getDateString(loopDate) === getDateString(selectedDate)) dayBtn.classList.add('active');
+                    if (currentAccountTransactions[getDateString(loopDate)]?.length > 0) dayBtn.classList.add('has-data');
+                    dayBtn.onclick = () => { onSelectCallback(loopDate); dayBtn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); };
+                    pageUI.dateScroller.appendChild(dayBtn);
+                }
+                setTimeout(() => pageUI.dateScroller.querySelector('.active')?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }), 100);
+            };
+            const updateActiveTabStyles = () => { ui.mainPage.incomeTab.classList.toggle('active', displayFilter === 'income'); ui.mainPage.expenseTab.classList.toggle('active', displayFilter === 'expense'); };
+            const handleTabClick = (type) => { displayFilter = (displayFilter === type) ? 'all' : type; saveData(); };
+            const updateStatsActiveTabStyles = () => { ui.statsPage.incomeTab.classList.toggle('active', statsDisplayFilter === 'income'); ui.statsPage.expenseTab.classList.toggle('active', statsDisplayFilter === 'expense'); };
+            const handleStatsTabClick = (type) => { statsDisplayFilter = (statsDisplayFilter === type) ? 'all' : type; saveData(); };
+            
+            const handleVoiceInput = (targetInput, micButton) => {
+                if (!window.plugins || !window.plugins.speechRecognition) {
+                    showNotification('Плагин распознавания речи не найден. Попробуйте в браузере.', true);
+                    // Fallback to Web Speech API for browsers
+                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                    if (!SpeechRecognition) {
+                        showNotification('Ваш браузер не поддерживает голосовой ввод.', true);
+                        return;
+                    }
+                    const recognition = new SpeechRecognition();
+                    recognition.lang = 'ru-RU';
+                    recognition.interimResults = false;
+                    recognition.maxAlternatives = 1;
+                    micButton.classList.add('listening');
+                    recognition.onresult = (event) => {
+                        const transcript = event.results[0][0].transcript;
+                        if (targetInput.id === 'amount') {
+                            const numbers = transcript.match(/\d+/g);
+                            if (numbers) {
+                                if (transcript.includes('руб') || transcript.includes('копе') || transcript.includes('точка') || transcript.includes('запятая')) {
+                                    if (numbers.length > 1) targetInput.value = numbers.slice(0, 2).join('.');
+                                    else targetInput.value = numbers[0];
+                                } else {
+                                    targetInput.value = numbers.join('');
+                                }
+                            }
+                        } else {
+                            targetInput.value = transcript;
+                        }
+                    };
+                    recognition.onspeechend = () => recognition.stop();
+                    recognition.onerror = (event) => {
+                        console.error("Speech recognition error:", event.error);
+                        let errorMessage = 'Ошибка голосового ввода.';
+                        if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+                            errorMessage = 'Доступ к микрофону запрещен.';
+                        } else if (event.error === 'no-speech') {
+                            errorMessage = 'Речь не распознана.';
+                        }
+                        showNotification(errorMessage, true);
+                    };
+                    recognition.onend = () => micButton.classList.remove('listening');
+                    recognition.start();
+                    return;
+                }
+
+                const speechRecognition = window.plugins.speechRecognition;
+
+                const startRecognition = () => {
+                    micButton.classList.add('listening');
+                    const options = {
+                        language: 'ru-RU',
+                        matches: 1,
+                        prompt: 'Говорите...' // Android only
+                    };
+
+                    speechRecognition.startListening(
+                        (matches) => {
+                            const transcript = matches[0];
+                            if (targetInput.id === 'amount') {
+                                const numbers = transcript.match(/\d+/g);
+                                if (numbers) {
+                                    if (transcript.includes('руб') || transcript.includes('копе') || transcript.includes('точка') || transcript.includes('запятая')) {
+                                        if (numbers.length > 1) targetInput.value = numbers.slice(0, 2).join('.');
+                                        else targetInput.value = numbers[0];
+                                    } else {
+                                        targetInput.value = numbers.join('');
+                                    }
+                                }
+                            } else {
+                                targetInput.value = transcript;
+                            }
+                            micButton.classList.remove('listening');
+                        },
+                        (error) => {
+                            console.error("Speech recognition error:", error);
+                            let errorMessage = `Ошибка голосового ввода: ${error}`;
+                            showNotification(errorMessage, true);
+                            micButton.classList.remove('listening');
+                        },
+                        options
+                    );
+                };
+
+                speechRecognition.hasPermission(
+                    (hasPermission) => {
+                        if (hasPermission) {
+                            startRecognition();
+                        } else {
+                            speechRecognition.requestPermission(
+                                () => {
+                                    startRecognition();
+                                },
+                                () => {
+                                    showNotification('Доступ к микрофону не предоставлен.', true);
+                                }
+                            );
+                        }
+                    },
+                    (err) => {
+                        console.error("Permission check error:", err);
+                        showNotification('Ошибка при проверке доступа к микрофону.', true);
+                    }
+                );
+            };
+
+            const showEditAccountModal = (accountId) => {
+                ui.transactionModal.innerHTML = `<div id="transaction-modal-content" class="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-xl">\r\n                    <h2 class="text-2xl font-bold mb-6 text-center text-gray-900 dark:text-white">Изменить название счета</h2>\r\n                    <form id="edit-account-form-inner" class="space-y-4">\r\n                        <div>\r\n                            <label for="edit-account-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Название счета</label>\r\n                            <div class="mt-1">\r\n                                <input type="text" id="edit-account-name" class="block w-full pl-3 pr-2 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500" value="${(accounts[accountId] || '').replace(/"/g, '&quot;')}">\r\n                            </div>\r\n                        </div>\r\n                        <div class="flex justify-between gap-4 pt-4">\r\n                            <button type="button" id="close-modal-btn" class="w-full bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">Закрыть</button>\r\n                            <button type="submit" class="w-full text-white font-bold py-2 px-4 rounded-lg bg-blue-500 hover:bg-blue-600">Сохранить</button>\r\n                        </div>\r\n                    </form>\r\n                </div>`;
+                
+                const closeModal = () => {
+                    ui.transactionModal.classList.add('hidden');
+                };
+
+                ui.transactionModal.classList.remove('hidden');
+
+                const nameInput = document.getElementById('edit-account-name');
+                nameInput.focus();
+                nameInput.select();
+
+                document.getElementById('close-modal-btn').onclick = closeModal;
+                document.getElementById('edit-account-form-inner').onsubmit = (e) => {
+                    e.preventDefault();
+                    const newName = nameInput.value.trim();
+                    if (newName) {
+                        accounts[accountId] = newName;
+                        saveData();
+                    }
+                    closeModal();
+                };
+            };
+
+            const showTransactionModal = (type) => {
+                const isIncome = type === 'income';
+                ui.transactionModal.innerHTML = `<div class="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-xl"><h2 class="text-2xl font-bold mb-6 text-center text-gray-900 dark:text-white">${isIncome ? 'Добавить доход' : 'Добавить расход'}</h2><form id="transaction-form-inner" class="space-y-4" onsubmit="return false;"><div><label for="amount" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Сумма</label><div class="mt-1 flex items-center"><input type="number" id="amount" step="0.01" class="block w-full pl-3 pr-2 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="0.00" required><button type="button" id="voice-amount-btn" class="voice-btn ml-2 p-2 rounded-full text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"><svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z"/><path d="M5.5 8.5a.5.5 0 01.5.5v1a4 4 0 004 4h1a4 4 0 004-4v-1a.5.5 0 011 0v1a5 5 0 01-4.5 4.975V17h3a.5.5 0 010 1h-7a.5.5 0 010-1h3v-2.525A5 5 0 015 10v-1a.5.5 0 01.5-.5z"/></svg></button></div></div><div><label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Описание (необязательно)</label><div class="mt-1 flex items-center"><input type="text" id="description" class="block w-full pl-3 pr-2 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Например, кофе"><button type="button" id="voice-desc-btn" class="voice-btn ml-2 p-2 rounded-full text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"><svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z"/><path d="M5.5 8.5a.5.5 0 01.5.5v1a4 4 0 004 4h1a4 4 0 004-4v-1a.5.5 0 011 0v1a5 5 0 01-4.5 4.975V17h3a.5.5 0 010 1h-7a.5.5 0 010-1h3v-2.525A5 5 0 015 10v-1a.5.5 0 01.5-.5z"/></svg></button></div></div><div class="flex justify-between gap-4 pt-4"><button type="button" id="close-modal-btn" class="w-full bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">Закрыть</button><button type="button" id="submit-transaction-btn" class="w-full text-white font-bold py-2 px-4 rounded-lg ${isIncome ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}">Добавить</button></div></form></div>`;
+                
+                const closeModal = () => {
+                    ui.transactionModal.classList.add('hidden');
+                };
+
+                ui.transactionModal.classList.remove('hidden'); 
+                const amountInput = document.getElementById('amount'); 
+                const descInput = document.getElementById('description'); 
+
+                amountInput.focus();
+
+                document.getElementById('voice-amount-btn').onclick = (e) => handleVoiceInput(amountInput, e.currentTarget);
+                document.getElementById('voice-desc-btn').onclick = (e) => handleVoiceInput(descInput, e.currentTarget);
+                document.getElementById('close-modal-btn').onclick = closeModal;
+                document.getElementById('submit-transaction-btn').onclick = () => { 
+                    if (!amountInput.value) {
+                        amountInput.focus();
+                        showNotification('Пожалуйста, введите сумму.', true);
+                        return;
+                    }
+                    const newTx = { id: Date.now(), type, amount: parseFloat(amountInput.value), desc: descInput.value }; 
+                    const dateKey = getDateString(mainSelectedDate); 
+                    if (!appData.transactions) appData.transactions = {}; 
+                    if (!appData.transactions[currentAccountId]) appData.transactions[currentAccountId] = {}; 
+                    if (!appData.transactions[currentAccountId][dateKey]) appData.transactions[currentAccountId][dateKey] = []; 
+                    appData.transactions[currentAccountId][dateKey].push(newTx); 
+                    saveData(); 
+                    closeModal(); 
+                };
+            };
+            
+            const showEditModal = (tx) => {
+                const dateKey = getDateString(mainSelectedDate);
+                ui.transactionModal.innerHTML = `<div class="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-xl"><h2 class="text-2xl font-bold mb-6 text-center text-gray-900 dark:text-white">Изменить описание</h2><form id="edit-form-inner" class="space-y-4"><div><label for="edit-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Описание</label><div class="mt-1 flex items-center"><input type="text" id="edit-description" class="block w-full pl-3 pr-2 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500" value="${tx.desc.replace(/"/g, '&quot;')}"><button type="button" id="voice-edit-desc-btn" class="voice-btn ml-2 p-2 rounded-full text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"><svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z"/><path d="M5.5 8.5a.5.5 0 01.5.5v1a4 4 0 004 4h1a4 4 0 004-4v-1a.5.5 0 011 0v1a5 5 0 01-4.5 4.975V17h3a.5.5 0 010 1h-7a.5.5 0 010-1h3v-2.525A5 5 0 015 10v-1a.5.5 0 01.5-.5z"/></svg></button></div></div><div class="flex justify-between gap-4 pt-4"><button type="button" id="close-modal-btn" class="w-full bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">Закрыть</button><button type="submit" class="w-full text-white font-bold py-2 px-4 rounded-lg bg-blue-500 hover:bg-blue-600">Сохранить</button></div></form></div>`;
+                
+                const closeModal = () => {
+                    ui.transactionModal.classList.add('hidden');
+                    ui.transactionModal.style.transform = ''; // Reset transform
+                };
+
+                ui.transactionModal.classList.remove('hidden');
+                const descInput = document.getElementById('edit-description');
+                
+                const adjustModalPosition = () => {
+                    // Only move up on focus
+                    if (document.activeElement === descInput) {
+                         ui.transactionModal.style.transform = 'translateY(-10vh)';
+                    }
+                };
+
+                descInput.addEventListener('focus', adjustModalPosition);
+
+                descInput.focus();
+
+                 document.getElementById('voice-edit-desc-btn').onclick = (e) => handleVoiceInput(descInput, e.currentTarget);
+                document.getElementById('close-modal-btn').onclick = closeModal;
+                document.getElementById('edit-form-inner').onsubmit = (e) => {
+                    e.preventDefault();
+                    const transactionsOnDate = appData.transactions[currentAccountId][dateKey];
+                    const txIndex = transactionsOnDate.findIndex(t => t.id === tx.id);
+                    if (txIndex > -1) {
+                        transactionsOnDate[txIndex].desc = descInput.value;
+                        saveData();
+                    }
+                    closeModal();
+                };
+            };
+
+            const showConfirmModal = (onConfirm) => { ui.confirmModal.innerHTML = `<div class="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-xl text-center"><h3 class="text-lg font-semibold mb-4">Вы уверены?</h3><p id="confirm-text" class="text-sm text-gray-500 mb-4"></p><div class="flex gap-4"><button id="confirm-cancel" class="w-full bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">Отмена</button><button id="confirm-ok" class="w-full bg-red-500 text-white p-2 rounded-lg hover:bg-red-600">Да</button></div></div>`; ui.confirmModal.classList.remove('hidden'); document.getElementById('confirm-ok').onclick = () => { onConfirm(); ui.confirmModal.classList.add('hidden'); }; document.getElementById('confirm-cancel').onclick = () => ui.confirmModal.classList.add('hidden'); return ui.confirmModal; };
+            
+            const renderDataManagementUI = () => {
+                const container = ui.settingsPage.dataManagementContainer;
+                container.innerHTML = `<button id="clear-account-data-btn" data-account-id-to-clear="${Object.keys(accounts)[0]}" class="w-full p-3 rounded-lg bg-red-500 text-white hover:bg-red-600">Очистить данные счета</button>`;
+            };
+
+            const renderNotes = (filterQuery = '') => {
+                const { listContainer, noNotesPlaceholder } = ui.notesPage;
+                listContainer.innerHTML = '';
+                const query = filterQuery.trim().toLowerCase();
+                const filteredNotes = notes.filter(note => note.content.toLowerCase().includes(query));
+                noNotesPlaceholder.classList.toggle('hidden', filteredNotes.length > 0 || isNotesSelectionMode);
+                
+                filteredNotes.sort((a, b) => b.id - a.id).forEach(note => {
+                    const card = document.createElement('div');
+                    card.className = 'note-card cursor-pointer transition-all duration-150 transform active:scale-95';
+                    card.dataset.noteId = note.id;
+                    if (selectedNoteIds.has(note.id.toString())) {
+                        card.classList.add('selected');
+                    }
+                    card.innerHTML = `
+                        <p class="note-content text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">${note.content.substring(0, 200)}${note.content.length > 200 ? '...' : ''}</p>
+                        <div class="selection-indicator-wrapper">
+                            <div class="selection-indicator-icon">
+                                <svg class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
+                            </div>
+                        </div>
+                    `;
+                    listContainer.appendChild(card);
+                });
+            }
+
+            const saveCurrentNote = () => {
+                const content = ui.noteEditorPage.textarea.value.trim();
+                if (content) {
+                    if (currentNoteId !== null) {
+                        const index = notes.findIndex(n => n.id === currentNoteId);
+                        if (index > -1) notes[index].content = content;
+                    } else {
+                        notes.push({ id: Date.now(), content: content });
+                    }
+                } else if (currentNoteId !== null) {
+                    notes = notes.filter(n => n.id !== currentNoteId);
+                }
+                saveData();
+                showPage('notes');
+            }
+
+            function enterNotesSelectionMode(noteCard) {
+                isNotesSelectionMode = true;
+                ui.notesPage.normalHeader.classList.add('hidden');
+                ui.notesPage.selectionHeader.classList.add('flex');
+                ui.notesPage.selectionHeader.classList.remove('hidden');
+                ui.addBtn.classList.add('hidden');
+                const noteId = noteCard.dataset.noteId;
+                noteCard.classList.add('selected');
+                selectedNoteIds.add(noteId);
+                updateSelectionHeader();
+            }
+
+            function exitNotesSelectionMode() {
+                isNotesSelectionMode = false;
+                ui.notesPage.normalHeader.classList.remove('hidden');
+                ui.notesPage.selectionHeader.classList.add('hidden');
+                ui.notesPage.selectionHeader.classList.remove('flex');
+                if (!isSearchModalOpen) {
+                    ui.addBtn.classList.remove('hidden');
+                }
+                document.querySelectorAll('.note-card.selected').forEach(card => card.classList.remove('selected'));
+                selectedNoteIds.clear();
+            }
+
+            function updateSelectionHeader() {
+                ui.notesPage.selectionCountSpan.textContent = `Выбрано: ${selectedNoteIds.size}`;
+            }
+            
+            const renderPeriodButtons = () => {
+                const customPicker = ui.statsPage.customDateRangePicker;
+                ui.statsPage.periodBtnsContainer.querySelectorAll('.period-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.period === activeStatsPeriod);
+                    btn.onclick = () => { 
+                        activeStatsPeriod = btn.dataset.period;
+                        if (activeStatsPeriod === 'custom') {
+                            customPicker.classList.remove('hidden');
+                        } else {
+                            customPicker.classList.add('hidden');
+                        }
+                        saveData(); 
+                        renderStatsUI();
+                    };
+                });
+                if (activeStatsPeriod === 'custom') {
+                    customPicker.classList.remove('hidden');
+                }
+            };
+            
+            const getTransactionsForPeriod = () => {
+                const transactions = [];
+                const date = statsSelectedDate; 
+                const year = date.getFullYear(); 
+                const month = date.getMonth();
+                const accountTxs = (appData.transactions || {})[currentAccountId] || {};
+                
+                for (const dateStr in accountTxs) {
+                    const txDate = new Date(dateStr + "T00:00:00Z");
+                    let shouldInclude = false;
+                    if (activeStatsPeriod === 'day' && dateStr === getDateString(date)) {
+                        shouldInclude = true;
+                    } else if (activeStatsPeriod === 'month' && txDate.getUTCMonth() === month && txDate.getUTCFullYear() === year) {
+                        shouldInclude = true;
+                    } else if (activeStatsPeriod === 'year' && txDate.getUTCFullYear() === year) {
+                        shouldInclude = true;
+                    } else if (activeStatsPeriod === 'custom' && statsStartDate && statsEndDate && txDate >= statsStartDate && txDate <= statsEndDate) {
+                        shouldInclude = true;
+                    }
+
+                    if (shouldInclude) {
+                        accountTxs[dateStr].forEach(tx => transactions.push({ ...tx, date: txDate }));
+                    }
+                }
+                return transactions;
+            };
+
+            const renderStatistics = () => {
+                const transactions = getTransactionsForPeriod();
+                let income = 0, expense = 0;
+                transactions.forEach(tx => {
+                    if (tx.type === 'income') income += tx.amount; 
+                    else expense += tx.amount;
+                });
+                ui.statsPage.income.textContent = currencyFormatter.format(income); 
+                ui.statsPage.expense.textContent = currencyFormatter.format(expense); 
+                ui.statsPage.balance.textContent = currencyFormatter.format(income - expense);
+            };
+            
+            const renderStatsTransactionsList = () => {
+                const { transactionsList, noTransactions } = ui.statsPage;
+                transactionsList.innerHTML = '';
+                const allTransactions = getTransactionsForPeriod();
+
+                const transactions = allTransactions.filter(tx => {
+                    if (statsDisplayFilter === 'all') return true;
+                    return tx.type === statsDisplayFilter;
+                });
+
+                noTransactions.classList.toggle('hidden', transactions.length > 0);
+                if (transactions.length === 0) return;
+                
+                const groupedByDate = transactions.reduce((acc, tx) => {
+                    const dateKey = getDateString(tx.date);
+                    if (!acc[dateKey]) acc[dateKey] = [];
+                    acc[dateKey].push(tx);
+                    return acc;
+                }, {});
+
+                const sortedDates = Object.keys(groupedByDate).sort((a, b) => new Date(b) - new Date(a));
+
+                sortedDates.forEach(dateStr => {
+                    const dateHeader = document.createElement('h3');
+                    dateHeader.className = 'text-sm font-semibold text-gray-500 dark:text-gray-400 mt-4 mb-2';
+                    dateHeader.textContent = dateFormatter.format(new Date(dateStr + "T00:00:00Z"));
+                    transactionsList.appendChild(dateHeader);
+
+                    groupedByDate[dateStr].sort((a,b) => b.id - a.id).forEach(tx => {
+                        const isIncome = tx.type === 'income';
+                        const txEl = document.createElement('div');
+                        txEl.className = `flex items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 shadow-sm border-l-4 ${isIncome ? 'border-green-500' : 'border-red-500'}`;
+                        txEl.innerHTML = `
+                            <div class="flex-grow min-w-0">
+                                <p class="font-semibold text-gray-800 dark:text-gray-200 break-words">${tx.desc}</p>
+                            </div>
+                            <div class="flex items-center">
+                                <p class="font-bold text-lg ${isIncome ? 'text-green-500' : 'text-red-500'}">
+                                    ${currencyFormatter.format(tx.amount)}
+                                </p>
+                            </div>
+                        `;
+                        transactionsList.appendChild(txEl);
+                    });
+                });
+            };
+            
+            const showSearchModal = () => {
+                if (isSearchModalOpen) return;
+                isSearchModalOpen = true;
+                history.pushState({ modal: 'search' }, 'Search');
+                ui.searchModal.classList.remove('hidden');
+                ui.searchModal.classList.add('flex');
+                ui.searchInput.value = '';
+                ui.searchResults.innerHTML = '';
+                ui.noSearchResults.classList.add('hidden');
+                ui.addBtn.classList.add('hidden');
+                setTimeout(() => ui.searchInput.focus(), 100);
+            };
+
+            const hideSearchModal = () => {
+                if (!isSearchModalOpen) return;
+                isSearchModalOpen = false;
+                ui.searchInput.blur();
+                ui.searchModal.classList.add('hidden');
+                ui.searchModal.classList.remove('flex');
+
+                const activePageId = document.querySelector('.page:not(.hidden)')?.id;
+                if ((activePageId === 'main-page' && !isSelectionMode) || (activePageId === 'notes-page' && !isNotesSelectionMode)) {
+                    ui.addBtn.classList.remove('hidden');
+                }
+            };
+
+            const handleSearch = (e) => {
+                const query = e.target.value.trim().toLowerCase();
+                ui.searchResults.innerHTML = '';
+
+                if (query.length < 1) {
+                    ui.noSearchResults.classList.add('hidden');
+                    return;
+                }
+
+                const results = [];
+                const allAccountTxs = appData.transactions[currentAccountId] || {};
+                
+                for (const dateStr in allAccountTxs) {
+                    for (const tx of allAccountTxs[dateStr]) {
+                        const amountStr = tx.amount.toString();
+                        if (tx.desc.toLowerCase().includes(query) || amountStr.includes(query)) {
+                            results.push({ ...tx, date: dateStr });
+                        }
+                    }
+                }
+
+                renderSearchResults(results);
+            };
+
+            const renderSearchResults = (results) => {
+                ui.noSearchResults.classList.toggle('hidden', results.length > 0);
+                
+                results.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                for (const result of results) {
+                    const isIncome = result.type === 'income';
+                    const resultEl = document.createElement('div');
+                    resultEl.className = `search-result-item cursor-pointer flex items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 shadow-sm border-l-4 ${isIncome ? 'border-green-500' : 'border-red-500'}`;
+                    resultEl.dataset.date = result.date;
+
+                    resultEl.innerHTML = `
+                        <div class="flex-grow min-w-0">
+                            <p class="font-semibold text-gray-800 dark:text-gray-200 break-words">${result.desc}</p>
+                            <p "text-sm text-gray-500 dark:text-gray-400">${dateFormatter.format(new Date(result.date + "T00:00:00Z"))}</p>
+                        </div>
+                        <div class="flex items-center">
+                            <p class="font-bold text-lg ${isIncome ? 'text-green-500' : 'text-red-500'}">
+                                ${currencyFormatter.format(result.amount)}
+                            </p>
+                        </div>
+                    `;
+                    ui.searchResults.appendChild(resultEl);
+                }
+            };
+            
+            const handleSearchResultClick = (e) => {
+                const resultItem = e.target.closest('.search-result-item');
+                if (!resultItem) return;
+
+                const dateStr = resultItem.dataset.date;
+                const newDate = new Date(dateStr + "T00:00:00Z");
+
+                mainCurrentDate = new Date(newDate);
+                mainSelectedDate = new Date(newDate);
+                statsCurrentDate = new Date(newDate);
+                statsSelectedDate = new Date(newDate);
+
+                hideSearchModal();
+                showPage('main');
+            };
+
+            const toggleSidebar = (forceOpen) => {
+                const isOpen = ui.sidebar.classList.contains('open');
+                const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !isOpen;
+                ui.sidebar.classList.toggle('open', shouldOpen);
+                ui.sidebarOverlay.classList.toggle('hidden', !shouldOpen);
+            };
+            const applyTheme = (theme) => { if (theme === 'dark') ui.html.classList.add('dark'); else ui.html.classList.remove('dark'); ui.settingsPage.lightThemeBtn.classList.toggle('active', theme === 'light'); ui.settingsPage.darkThemeBtn.classList.toggle('active', theme === 'dark'); localStorage.setItem('finance_theme', theme); };
+            
+
+            const showNotification = (message, isError = false) => {
+                ui.notificationText.textContent = message;
+                ui.notification.classList.remove('bg-red-500', 'bg-green-500');
+                ui.notification.classList.add(isError ? 'bg-red-500' : 'bg-green-500');
+                ui.notification.classList.add('show');
+                setTimeout(() => {
+                    ui.notification.classList.remove('show');
+                }, 3000);
+            };
+            
+            const handleExport = async () => {
+                const dataStr = localStorage.getItem('finance_app_data');
+                if (!dataStr) {
+                    showNotification('Нет данных для экспорта.', true);
+                    return;
+                }
+                const fileName = `finance_tracker_backup_${getDateString(new Date())}.json`;
+                try {
+                    const { publicStorage } = await Capacitor.Plugins.Filesystem.requestPermissions();
+                    if (publicStorage !== 'granted') {
+                        showNotification('Не удалось получить разрешение для сохранения файлов.', true);
+                        return;
+                    }
+                    await Capacitor.Plugins.Filesystem.writeFile({
+                        path: fileName,
+                        data: dataStr,
+                        directory: Capacitor.Plugins.Filesystem.Directory.Documents,
+                        encoding: 'utf8',
+                        recursive: true
+                    });
+                    showNotification(`Данные успешно экспортированы в ${fileName} в папке Документы!`);
+                } catch (error) {
+                    console.error('Export failed:', error);
+                    showNotification('Ошибка экспорта. Проверьте разрешения приложения.', true);
+                }
+            };
+            
+
+            const handleImport = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const importedData = JSON.parse(e.target.result);
+                        if (typeof importedData.transactions !== 'object' || typeof importedData.meta !== 'object') {
+                            throw new Error('Invalid file structure');
+                        }
+                        
+                        const modal = showConfirmModal(() => {
+                            appData = importedData;
+                            saveData();
+                            loadData(); 
+                            resetToToday();
+                            renderMainUI();
+                            showNotification('Данные успешно импортированы!');
+                        });
+                        modal.querySelector('h3').textContent = 'Импортировать данные?';
+                        modal.querySelector('#confirm-text').textContent = 'Текущие данные будут полностью заменены. Это действие нельзя отменить.';
+                        modal.querySelector('#confirm-ok').textContent = 'Да, импортировать';
+
+                    } catch (error) {
+                        console.error('Import failed:', error);
+                        showNotification('Ошибка: Неверный формат файла.', true);
+                    } finally {
+                        event.target.value = '';
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            const handleClearAccountData = (accountId) => {
+                const modal = showConfirmModal(() => {
+                    if (appData.transactions && appData.transactions[accountId]) {
+                        delete appData.transactions[accountId];
+                        saveData();
+                        loadData();
+                        if (currentAccountId === accountId) {
+                            currentAccountId = Object.keys(accounts)[0] || 'acc1';
+                        }
+                        resetToToday();
+                        showPage('main');
+                        showNotification(`Данные для счета ${accounts[accountId]} успешно удалены!`);
+                    }
+                });
+                modal.querySelector('h3').textContent = `Очистить счет ${accounts[accountId]}?`;
+                modal.querySelector('#confirm-text').textContent = `Все транзакции для счета ${accounts[accountId]} будут удалены. Это действие нельзя отменить.`;
+                modal.querySelector('#confirm-ok').textContent = 'Да, очистить';
+            };
+            
+            const handleClearData = () => {
+                const modal = showConfirmModal(() => {
+                    appData.transactions = {};
+                    saveData();
+                    loadData(); 
+                    resetToToday();
+                    showPage('main');
+                    showNotification('Все данные успешно удалены!');
+                });
+                modal.querySelector('h3').textContent = 'Очистить все данные?';
+                modal.querySelector('#confirm-text').textContent = 'Все транзакции для ВСЕХ счетов будут удалены. Это действие нельзя отменить.';
+                modal.querySelector('#confirm-ok').textContent = 'Да, очистить';
+            };
+
+
+            function addSwipeListener(element, callbacks) {
+                let touchStartX = 0, touchStartY = 0;
+                element.addEventListener('touchstart', e => {
+                    touchStartX = e.changedTouches[0].clientX;
+                    touchStartY = e.changedTouches[0].clientY;
+                }, { passive: true });
+                element.addEventListener('touchend', e => {
+                    const touchEndX = e.changedTouches[0].clientX;
+                    const touchEndY = e.changedTouches[0].clientY;
+                    const deltaX = touchEndX - touchStartX;
+                    const deltaY = touchEndY - touchStartY;
+                    const minSwipeDist = 50;
+                    if (Math.abs(deltaX) > minSwipeDist && Math.abs(deltaX) > Math.abs(deltaY)) {
+                        if (deltaX < 0 && callbacks.onSwipeLeft) callbacks.onSwipeLeft();
+                        else if (deltaX > 0 && callbacks.onSwipeRight) callbacks.onSwipeRight();
+                    }
+                }, { passive: true });
+            }
+            
+            const handleAccountSwipe = (direction) => {
+                const activePage = document.querySelector('.page:not(.hidden)');
+                if (!activePage) return;
+                const mainContent = activePage.querySelector('main');
+                if (!mainContent) return;
+                return;
+            };
+
+            const handleBackButton = (e) => {
+                const activePageId = document.querySelector('.page:not(.hidden)')?.id;
+
+                if (activePageId === 'main-page' && isSelectionMode) {
+                    e.preventDefault();
+                    toggleSelectionMode(false);
+                    return;
+                }
+                if (activePageId === 'notes-page' && isNotesSelectionMode) {
+                    e.preventDefault();
+                    exitNotesSelectionMode();
+                    return;
+                }
+                if (isSearchModalOpen) {
+                    e.preventDefault();
+                    if (e.type !== 'popstate') {
+                        history.back();
+                    }
+                    hideSearchModal();
+                    return;
+                }
+                if (activePageId === 'notes-page' && document.activeElement === ui.notesPage.searchInput) {
+                    e.preventDefault();
+                    ui.notesPage.searchInput.value = '';
+                    renderNotes();
+                    ui.notesPage.searchInput.blur();
+                    return;
+                }
+                if (activePageId === 'note-editor-page') {
+                    e.preventDefault();
+                    ui.noteEditorPage.backBtn.click();
+                    return;
+                }
+                if (activePageId !== 'main-page') {
+                    e.preventDefault();
+                    showPage('main');
+                    return;
+                }
+                if (navigator.app) {
+                    navigator.app.exitApp();
+                }
+            };
+
+            const initializeAppEventListeners = () => {
+                ui.mainPage.prevMonthBtn.onclick = () => { ui.mainPage.dateScroller.scrollLeft = 0; mainCurrentDate.setMonth(mainCurrentDate.getMonth() - 1); renderMainUI(); };
+                ui.mainPage.nextMonthBtn.onclick = () => { ui.mainPage.dateScroller.scrollLeft = 0; mainCurrentDate.setMonth(mainCurrentDate.getMonth() + 1); renderMainUI(); };
+                ui.statsPage.prevMonthBtn.onclick = () => { ui.statsPage.dateScroller.scrollLeft = 0; statsCurrentDate.setMonth(statsCurrentDate.getMonth() - 1); renderStatsUI(); };
+                ui.statsPage.nextMonthBtn.onclick = () => { ui.statsPage.dateScroller.scrollLeft = 0; statsCurrentDate.setMonth(statsCurrentDate.getMonth() + 1); renderStatsUI(); };
+                
+                ui.addBtn.onclick = () => {
+                    const activePageId = document.querySelector('.page:not(.hidden)')?.id;
+                    if (activePageId === 'main-page') {
+                        if (displayFilter === 'all') {
+                            showNotification('Сначала выберите "Доходы" или "Расходы"', true);
+                            return;
+                        }
+                        showTransactionModal(displayFilter);
+                    } else if (activePageId === 'notes-page') {
+                        showPage('note-editor', { noteId: null });
+                    }
+                };
+                
+                [ui.sidebarOverlay, ui.notesPage.menuBtn].forEach(el => el.onclick = () => toggleSidebar());
+                ui.settingsPage.lightThemeBtn.onclick = () => applyTheme('light');
+                ui.settingsPage.darkThemeBtn.onclick = () => applyTheme('dark');
+                
+                ui.mainPage.incomeTab.onclick = () => handleTabClick('income');
+                ui.mainPage.expenseTab.onclick = () => handleTabClick('expense');
+                ui.statsPage.incomeTab.onclick = () => handleStatsTabClick('income');
+                ui.statsPage.expenseTab.onclick = () => handleStatsTabClick('expense');
+
+                ui.mainPage.searchBtn.onclick = showSearchModal;
+                ui.statsPage.searchBtn.onclick = showSearchModal;
+                ui.closeSearchBtn.onclick = hideSearchModal;
+                ui.searchInput.oninput = handleSearch;
+                ui.searchResults.onclick = handleSearchResultClick;
+
+                ui.datePicker.onchange = (e) => {
+                    const dateParts = e.target.value.split('-');
+                    const newDate = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2]));
+                    if (!isNaN(newDate.getTime())) {
+                        mainCurrentDate = new Date(newDate); mainSelectedDate = new Date(newDate);
+                        statsCurrentDate = new Date(newDate); statsSelectedDate = new Date(newDate);
+                        const activePageId = document.querySelector('.page:not(.hidden)')?.id;
+                        if (activePageId === 'main-page') renderMainUI();
+                        else if (activePageId === 'stats-page') renderStatsUI();
+                    }
+                };
+
+                ui.navLinks.forEach(link => link.onclick = (e) => { e.preventDefault(); showPage(link.dataset.page); });
+                
+                // Notes Page Listeners
+                ui.noteEditorPage.backBtn.addEventListener('click', saveCurrentNote);
+                ui.notesPage.searchInput.addEventListener('input', (e) => renderNotes(e.target.value));
+
+                ui.notesPage.searchInput.addEventListener('focus', () => {
+                    isNotesSearchActive = true;
+                    ui.addBtn.classList.add('hidden');
+                });
+
+                ui.notesPage.searchInput.addEventListener('blur', () => {
+                    isNotesSearchActive = false;
+                    if (!isNotesSelectionMode) {
+                        ui.addBtn.classList.remove('hidden');
+                    }
+                });
+
+                ui.notesPage.listContainer.addEventListener('touchstart', (e) => {
+                    if (isNotesSelectionMode) return;
+                    const targetCard = e.target.closest('.note-card');
+                    if (!targetCard) return;
+                    notesPressTimer = setTimeout(() => enterNotesSelectionMode(targetCard), 500);
+                }, { passive: true });
+
+                ui.notesPage.listContainer.addEventListener('touchend', () => clearTimeout(notesPressTimer));
+                ui.notesPage.listContainer.addEventListener('touchmove', () => clearTimeout(notesPressTimer));
+
+                ui.notesPage.listContainer.addEventListener('click', (e) => {
+                    const targetCard = e.target.closest('.note-card');
+                    if (!targetCard) return;
+
+                    if (isNotesSelectionMode) {
+                        const noteId = targetCard.dataset.noteId;
+                        targetCard.classList.toggle('selected');
+                        if (selectedNoteIds.has(noteId)) {
+                            selectedNoteIds.delete(noteId);
+                        } else {
+                            selectedNoteIds.add(noteId);
+                        }
+                        if (selectedNoteIds.size === 0) {
+                            exitNotesSelectionMode();
+                        } else {
+                            updateSelectionHeader();
+                        }
+                    } else {
+                        showPage('note-editor', { noteId: parseInt(targetCard.dataset.noteId) });
+                    }
+                });
+
+                document.getElementById('selection-exit-btn').addEventListener('click', exitNotesSelectionMode);
+
+                document.getElementById('select-all-btn').addEventListener('click', () => {
+                    document.querySelectorAll('#notes-list-container .note-card').forEach(card => {
+                        card.classList.add('selected');
+                        selectedNoteIds.add(card.dataset.noteId);
+                    });
+                    updateSelectionHeader();
+                });
+
+                document.getElementById('delete-selected-btn-notes').addEventListener('click', () => {
+                    if (selectedNoteIds.size === 0) return;
+                    const modal = showConfirmModal(() => {
+                        notes = notes.filter(note => !selectedNoteIds.has(note.id.toString()));
+                        saveData();
+                        exitNotesSelectionMode();
+                        showNotification('Заметки удалены');
+                    });
+                    modal.querySelector('#confirm-text').textContent = `Удалить выбранные заметки (${selectedNoteIds.size} шт.)?`;
+                    modal.querySelector('#confirm-ok').textContent = 'Да, удалить';
+                });
+
+
+                function enableSwipeableSidebar() {
+                    let touchStartX = 0;
+                    let currentX = 0;
+                    let isDragging = false;
+                    let sidebarWidth = 0;
+                    const edgeThreshold = 40;
+
+                    const onDragStart = (e) => {
+                        sidebarWidth = ui.sidebar.offsetWidth;
+                        touchStartX = e.touches[0].clientX;
+                        isDragging = true;
+                        ui.sidebar.classList.add('dragging');
+                    };
+
+                    const onDragMove = (e) => {
+                        if (!isDragging) return;
+                        e.preventDefault();
+
+                        const touchX = e.touches[0].clientX;
+                        const deltaX = touchX - touchStartX;
+                        
+                        let initialX = ui.sidebar.classList.contains('open') ? 0 : -sidebarWidth;
+                        let newX = initialX + deltaX;
+
+                        currentX = Math.max(-sidebarWidth, Math.min(0, newX));
+
+                        ui.sidebar.style.transform = `translateX(${currentX}px)`;
+                        ui.sidebarOverlay.classList.remove('hidden');
+                        ui.sidebarOverlay.style.opacity = 1 + (currentX / sidebarWidth);
+                    };
+
+                    const onDragEnd = (e) => {
+                        if (!isDragging) return;
+                        isDragging = false;
+                        ui.sidebar.classList.remove('dragging');
+                        ui.sidebar.style.transform = '';
+                        ui.sidebarOverlay.style.opacity = '';
+
+                        const threshold = sidebarWidth / 2;
+                        
+                        if (sidebarWidth > 0 && currentX < -threshold) {
+                            toggleSidebar(false);
+                        } else if (sidebarWidth > 0) {
+                            toggleSidebar(true);
+                        } else {
+                            toggleSidebar();
+                        }
+                    };
+
+                    window.addEventListener('touchstart', (e) => {
+                        if (!ui.sidebar.classList.contains('open') && e.touches[0].clientX < edgeThreshold) {
+                            onDragStart(e);
+                        }
+                    }, { passive: true });
+
+                    ui.sidebar.addEventListener('touchstart', onDragStart, { passive: true });
+                    ui.sidebarOverlay.addEventListener('touchstart', onDragStart, { passive: true });
+
+                    window.addEventListener('touchmove', onDragMove, { passive: false });
+                    window.addEventListener('touchend', onDragEnd, { passive: true });
+                }
+
+                enableSwipeableSidebar();
+                
+                addSwipeListener(ui.mainPage.page.querySelector('header'), { onSwipeLeft: () => ui.mainPage.nextMonthBtn.click(), onSwipeRight: () => ui.mainPage.prevMonthBtn.click() });
+                addSwipeListener(ui.statsPage.page.querySelector('header'), { onSwipeLeft: () => ui.statsPage.nextMonthBtn.click(), onSwipeRight: () => ui.statsPage.prevMonthBtn.click() });
+
+                ui.statsPage.startDatePicker.onchange = (e) => {
+                    statsStartDate = e.target.value ? new Date(e.target.value + "T00:00:00Z") : null;
+                    saveData();
+                    renderStatsUI();
+                };
+                ui.statsPage.endDatePicker.onchange = (e) => {
+                    statsEndDate = e.target.value ? new Date(e.target.value + "T00:00:00Z") : null;
+                    saveData();
+                    renderStatsUI();
+                };
+
+                ui.settingsPage.dataManagementContainer.addEventListener('click', (e) => {
+                    if (e.target.id === 'export-btn') handleExport();
+                    if (e.target.id === 'clear-data-btn') handleClearData();
+                    const accountIdToClear = e.target.dataset.accountIdToClear;
+                    if (accountIdToClear) {
+                        handleClearAccountData(accountIdToClear);
+                    }
+                });
+                ui.importFileInput.onchange = handleImport;
+
+                let pressTimer = null;
+                let longPressTriggered = false;
+
+                ui.mainPage.transactionsList.addEventListener('touchstart', (e) => {
+                    const item = e.target.closest('.transaction-item');
+                    if (!item || isSelectionMode) return;
+                    longPressTriggered = false;
+                    pressTimer = setTimeout(() => {
+                        longPressTriggered = true;
+                        const txId = parseInt(item.dataset.txId);
+                        const dateKey = getDateString(mainSelectedDate);
+                        const tx = appData.transactions[currentAccountId][dateKey].find(t => t.id === txId);
+                        if (tx) showEditModal(tx);
+                    }, 500); 
+                }, { passive: true });
+
+                ui.mainPage.transactionsList.addEventListener('touchend', (e) => {
+                    clearTimeout(pressTimer);
+                    if (longPressTriggered) {
+                        e.preventDefault(); 
+                        return;
+                    }
+                    const item = e.target.closest('.transaction-item'); if (!item) return;
+                    if (!isSelectionMode) {
+                        const deleteBtn = e.target.closest('.delete-btn');
+                        if (deleteBtn) {
+                            const txId = parseInt(deleteBtn.dataset.id);
+                            const modal = showConfirmModal(() => {
+                                const dateKey = getDateString(mainSelectedDate);
+                                appData.transactions[currentAccountId][dateKey] = appData.transactions[currentAccountId][dateKey].filter(tx => tx.id !== txId);
+                                if (appData.transactions[currentAccountId][dateKey].length === 0) delete appData.transactions[currentAccountId][dateKey];
+                                saveData();
+                            });
+                            modal.querySelector('#confirm-text').textContent = 'Удалить эту операцию?';
+                            modal.querySelector('#confirm-ok').textContent = 'Да, удалить';
+                        }
+                    }
+                     else {
+                        const checkbox = item.querySelector('.tx-checkbox'); const txId = parseInt(item.dataset.txId);
+                        checkbox.checked = !checkbox.checked; item.classList.toggle('selected', checkbox.checked);
+                        if (checkbox.checked) selectedTxIds.add(txId); else selectedTxIds.delete(txId);
+                        ui.deleteSelectedBtn.classList.toggle('hidden', selectedTxIds.size === 0);
+                    }
+                });
+                
+                ui.mainPage.transactionsList.addEventListener('touchmove', () => {
+                        clearTimeout(pressTimer);
+                }, { passive: true });
+
+
+                ui.deleteSelectedBtn.onclick = () => { 
+                    const modal = showConfirmModal(() => { 
+                        const dateKey = getDateString(mainSelectedDate); 
+                        appData.transactions[currentAccountId][dateKey] = appData.transactions[currentAccountId][dateKey].filter(tx => !selectedTxIds.has(tx.id)); 
+                        if (appData.transactions[currentAccountId][dateKey].length === 0) delete appData.transactions[currentAccountId][dateKey];
+                        saveData(); toggleSelectionMode(false); 
+                    });
+                    modal.querySelector('#confirm-text').textContent = `Удалить выбранные операции (${selectedTxIds.size} шт.)?`;
+                    modal.querySelector('#confirm-ok').textContent = 'Да, удалить';
+                };
+
+                // System Back Button Handler
+                document.addEventListener('backbutton', handleBackButton, false);
+                window.addEventListener('popstate', (e) => {
+                    if (isSearchModalOpen) {
+                        handleBackButton(e);
+                    }
+                });
+            };
+            
+            function main() {
+                resetToToday();
+                loadData();
+                initializeAppEventListeners();
+                
+                const savedTheme = localStorage.getItem('finance_theme');
+                if (!savedTheme) {
+                    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    applyTheme(systemPrefersDark ? 'dark' : 'light');
+                } else {
+                    applyTheme(savedTheme);
+                }
+                
+                showPage('main');
+                
+                ui.loadingOverlay.style.display = 'none';
+                ui.pageContainer.classList.remove('opacity-0');
+            }
+
+            main();
+        });
+    </script>
+    <script src="cordova.js"></script>
+</body>
+</html>
+t').textContent = `Удалить выбранные операции (${selectedTxIds.size} шт.)?`;
+                    modal.querySelector('#confirm-ok').textContent = 'Да, удалить';
+                };
+
+                // System Back Button Handler
+                document.addEventListener('backbutton', handleBackButton, false);
+                window.addEventListener('popstate', (e) => {
+                    if (isSearchModalOpen) {
+                        handleBackButton(e);
+                    }
+                });
+            };
+            
+            function main() {
+                resetToToday();
+                loadData();
+                initializeAppEventListeners();
+                
+                const savedTheme = localStorage.getItem('finance_theme');
+                if (!savedTheme) {
+                    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    applyTheme(systemPrefersDark ? 'dark' : 'light');
+                } else {
+                    applyTheme(savedTheme);
+                }
+                
+                showPage('main');
+                
+                ui.loadingOverlay.style.display = 'none';
+                ui.pageContainer.classList.remove('opacity-0');
+            }
+
+            main();
+        });
+    </script>
+    <script src="cordova.js"></script>
+</body>
+</html>
