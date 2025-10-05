@@ -1460,6 +1460,7 @@
                     overlay.style.opacity = '0';
                 }
             };
+            ui.sidebarOverlay.addEventListener('click', () => toggleSidebar(false));
             /* [AI-EDIT END: sidebar-flicker-fix] */
             const applyTheme = (theme) => { if (theme === 'dark') ui.html.classList.add('dark'); else ui.html.classList.remove('dark'); ui.settingsPage.lightThemeBtn.classList.toggle('active', theme === 'light'); ui.settingsPage.darkThemeBtn.classList.toggle('active', theme === 'dark'); localStorage.setItem('finance_theme', theme); };
             
@@ -1659,7 +1660,7 @@
                     }
                 };
                 
-                [ui.sidebarOverlay, ui.notesPage.menuBtn].forEach(el => el.onclick = () => toggleSidebar());
+                ui.notesPage.menuBtn.onclick = () => toggleSidebar();
                 ui.settingsPage.lightThemeBtn.onclick = () => applyTheme('light');
                 ui.settingsPage.darkThemeBtn.onclick = () => applyTheme('dark');
                 
