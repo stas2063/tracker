@@ -102,16 +102,16 @@
             border-color: #1f2937; /* dark:border-gray-800 */
         }
 
-        .note-card.selected .selection-indicator-wrapper {
+        .note-card.ring-2 .selection-indicator-wrapper {
             opacity: 1;
             pointer-events: auto;
             transform: scale(1);
         }
-        
-        .note-card.selected {
+
+        .note-card.ring-2 {
             background-color: #DBEAFE; /* light mode selection color */
         }
-        .dark .note-card.selected {
+        .dark .note-card.ring-2 {
             background-color: #1E3A8A; /* dark mode selection color */
         }
         /* --- End Note Card Refactor --- */
@@ -165,6 +165,86 @@
         #search-modal {
             padding-top: calc(env(safe-area-inset-top) + 2rem);
         }
+
+        <!-- [AI-EDIT START: keep-transition] -->
+        /* --- Анимация перехода для заметок --- */
+
+        .note-card-hero,
+        #note-editor-hero {
+            view-transition-name: note-hero;
+        }
+
+        ::view-transition-old(note-hero) {
+            animation: noteHeroOut .26s cubic-bezier(.2,.8,.2,1) both;
+        }
+
+        ::view-transition-new(note-hero) {
+            animation: noteHeroIn .26s cubic-bezier(.2,.8,.2,1) both;
+        }
+
+        @keyframes noteHeroOut { to { opacity: 0; } }
+        @keyframes noteHeroIn  { from { opacity: 0; } to { opacity: 1; } }
+
+        @keyframes fade-in { from { opacity: 0; } }
+        @keyframes fade-out { to { opacity: 0; } }
+
+        ::view-transition-old(root) {
+            animation: 300ms ease-out both fade-out;
+        }
+
+        ::view-transition-new(root) {
+            animation: 300ms ease-in both fade-in;
+        }
+
+        .note-enter {
+            animation: noteIn .2s cubic-bezier(.2,.8,.2,1) both;
+        }
+
+        @keyframes noteIn {
+            from { opacity: 0; transform: translateY(8px) scale(.98); }
+            to { opacity: 1; transform: none; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            ::view-transition-old(root),
+            ::view-transition-new(root),
+            ::view-transition-old(note-hero),
+            ::view-transition-new(note-hero) {
+                animation-duration: 1ms !important;
+                animation-iteration-count: 1 !important;
+            }
+
+            .note-enter {
+                animation-duration: 1ms !important;
+                animation-iteration-count: 1 !important;
+            }
+        }
+        /* --- Конец секции анимации --- */
+        a {
+            -webkit-touch-callout: none; /* убирает всплывашку при удержании */
+            -webkit-user-select: none;   /* опционально — запрет выделения */
+            user-select: none;
+        }
+        <!-- [AI-EDIT END: keep-transition] -->
+        <!-- [AI-EDIT START: sidebar-flicker-fix] -->
+        #sidebar {
+            will-change: transform;
+            backface-visibility: hidden;
+            transform: translateZ(0);
+        }
+
+        #sidebar-overlay,
+        .sidebar-overlay {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .2s ease;
+        }
+
+        #sidebar.open + #sidebar-overlay {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        <!-- [AI-EDIT END: sidebar-flicker-fix] -->
     </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
@@ -177,16 +257,16 @@
     <aside id="sidebar" class="fixed top-0 left-0 h-full w-72 bg-white dark:bg-gray-800 shadow-lg z-40 p-6 flex flex-col">
         <h2 class="text-2xl font-bold mb-8 text-gray-900 dark:text-white">Меню</h2>
         <nav class="flex flex-col space-y-2">
-            <a href="#" data-page="main" class="nav-link flex items-center space-x-3 text-lg p-3 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg><span>Главная</span></a>
-            <a href="#" data-page="stats" class="nav-link flex items-center space-x-3 text-lg p-3 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2-2H9a2 2 0 01-2-2V5z"/></svg><span>Статистика</span></a>
-            <a href="#" data-page="settings" class="nav-link flex items-center space-x-3 text-lg p-3 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg><span>Настройки</span></a>
-            <a href="#" data-page="notes" class="nav-link flex items-center space-x-3 text-lg p-3 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+            <a data-page="main" class="nav-link flex items-center space-x-3 text-lg p-3 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg><span>Главная</span></a>
+            <a data-page="stats" class="nav-link flex items-center space-x-3 text-lg p-3 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2-2H9a2 2 0 01-2-2V5z"/></svg><span>Статистика</span></a>
+            <a data-page="settings" class="nav-link flex items-center space-x-3 text-lg p-3 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg><span>Настройки</span></a>
+            <a data-page="notes" class="nav-link flex items-center space-x-3 text-lg p-3 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
                 <span>Заметки</span>
             </a>
         </nav>
     </aside>
-    <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden"></div>
+    <div id="sidebar-overlay" class="sidebar-overlay fixed inset-0 bg-black bg-opacity-50 z-30 hidden"></div>
 
     <div id="page-container" class="h-full opacity-0 transition-opacity duration-300">
         <!-- Main page -->
@@ -278,10 +358,7 @@
 <div id="notes-page" class="page hidden">
     <header class="bg-white dark:bg-gray-800 p-3 shadow-md z-10 shrink-0 border-b border-gray-200 dark:border-gray-700">
     <div id="notes-normal-header" class="flex items-center w-full bg-gray-100 dark:bg-gray-700 rounded-full h-12">
-        <button id="notes-menu-btn" class="p-3 text-gray-500 dark:text-gray-400">
-            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
-        </button>
-        <input type="text" id="notes-search-input" placeholder="Поиск" class="w-full h-full bg-transparent pr-4 outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400">
+        <input type="text" id="notes-search-input" placeholder="Поиск" class="w-full h-full bg-transparent px-4 outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400">
     </div>
 
     <div id="notes-selection-header" class="hidden items-center w-full h-12">
@@ -312,11 +389,13 @@
         <h1 class="text-xl font-bold ml-4">Заметка</h1>
     </header>
     <main class="flex-grow">
-        <textarea id="note-editor-textarea" class="w-full h-full p-4 bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white outline-none resize-none text-lg" placeholder="Введите текст..."></textarea>
+        <div id="note-editor-hero" class="h-full">
+            <textarea id="note-editor-textarea" class="w-full h-full p-4 bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white outline-none resize-none text-lg" placeholder="Введите текст..."></textarea>
+        </div>
     </main>
 </div>
     </div>
-    
+
     <!-- Floating buttons -->
     <button id="add-btn" class="fixed bottom-20 md:bottom-6 right-6 bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 transition-transform transform hover:scale-110 z-20">
         <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
@@ -459,6 +538,7 @@
                     page: document.getElementById('note-editor-page'),
                     backBtn: document.getElementById('note-editor-back-btn'),
                     textarea: document.getElementById('note-editor-textarea'),
+                    hero: document.getElementById('note-editor-hero'),
                 }
             };
 
@@ -478,15 +558,253 @@
             let activeStatsPeriod = 'month', statsStartDate = null, statsEndDate = null;
             
             // Notes page state
+            <!-- [AI-EDIT START: keep-transition] -->
             let notes = [];
             let currentNoteId = null;
+            let newNoteId = null;
             let isNotesSearchActive = false;
             let isNotesSelectionMode = false;
             let selectedNoteIds = new Set();
             let notesPressTimer = null;
 
+            const prefersReducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+            const nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+            const openNoteEditorLikeKeep = async (noteId) => {
+                const normalizedId = typeof noteId === 'number' && !Number.isNaN(noteId) ? noteId : null;
+                const hasViewTransitions = typeof document.startViewTransition === 'function';
+                const selector = normalizedId !== null ? `.note-card[data-note-id="${normalizedId}"]` : null;
+                const cardHero = selector ? ui.notesPage.listContainer.querySelector(`${selector} .note-card-hero`) : null;
+                const cardWhole = selector && !cardHero ? ui.notesPage.listContainer.querySelector(selector) : null;
+                const sourceEl = cardHero || cardWhole || null;
+
+                if (hasViewTransitions) {
+                    if (cardHero) {
+                        try {
+                            await document.startViewTransition(() => { openNoteEditor(normalizedId); }).finished;
+                            return;
+                        } catch (err) {
+                            console.warn('ViewTransition failed while opening note:', err);
+                        }
+                    } else {
+                        try {
+                            await document.startViewTransition(() => { openNoteEditor(normalizedId); }).finished;
+                            return;
+                        } catch (err) {
+                            console.warn('ViewTransition fallback while opening note:', err);
+                        }
+                    }
+                }
+
+                const initialRect = sourceEl?.getBoundingClientRect();
+                openNoteEditor(normalizedId);
+                await nextFrame();
+
+                const hero = ui.noteEditorPage.hero;
+                if (!sourceEl || !hero || !initialRect) return;
+
+                const targetRect = hero.getBoundingClientRect();
+                const clone = sourceEl.cloneNode(true);
+                const sourceStyle = getComputedStyle(sourceEl);
+                Object.assign(clone.style, {
+                    position: 'fixed',
+                    left: `${initialRect.left}px`,
+                    top: `${initialRect.top}px`,
+                    width: `${initialRect.width}px`,
+                    height: `${initialRect.height}px`,
+                    margin: '0',
+                    zIndex: '9999',
+                    pointerEvents: 'none',
+                    background: sourceStyle.backgroundColor || 'transparent',
+                    borderRadius: sourceStyle.borderRadius || '0',
+                });
+                document.body.appendChild(clone);
+
+                const dx = targetRect.left - initialRect.left;
+                const dy = targetRect.top - initialRect.top;
+                const sx = targetRect.width / initialRect.width;
+                const sy = targetRect.height / initialRect.height;
+                const duration = prefersReducedMotion() ? 1 : 260;
+
+                if (typeof clone.animate !== 'function') {
+                    clone.remove();
+                    return;
+                }
+
+                try {
+                    await clone.animate(
+                        [
+                            { transform: 'translate(0,0) scale(1,1)', opacity: 1 },
+                            { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 1 },
+                        ],
+                        { duration, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' }
+                    ).finished;
+                } catch (err) {
+                    console.warn('WAAPI animation failed while opening note:', err);
+                } finally {
+                    clone.remove();
+                }
+            };
+
+            const closeEditorLikeKeep = async (noteId) => {
+                const normalizedId = typeof noteId === 'number' && !Number.isNaN(noteId) ? noteId : null;
+                const hasViewTransitions = typeof document.startViewTransition === 'function';
+                const hero = ui.noteEditorPage.hero;
+                if (!hero) {
+                    showPage('notes');
+                    return;
+                }
+
+                if (hasViewTransitions) {
+                    try {
+                        await document.startViewTransition(() => { showPage('notes'); }).finished;
+                        return;
+                    } catch (err) {
+                        console.warn('ViewTransition failed while closing note:', err);
+                    }
+                }
+
+                const startRect = hero.getBoundingClientRect();
+                const clone = hero.cloneNode(true);
+                const heroStyle = getComputedStyle(hero);
+                Object.assign(clone.style, {
+                    position: 'fixed',
+                    left: `${startRect.left}px`,
+                    top: `${startRect.top}px`,
+                    width: `${startRect.width}px`,
+                    height: `${startRect.height}px`,
+                    margin: '0',
+                    zIndex: '9999',
+                    pointerEvents: 'none',
+                    background: heroStyle.backgroundColor || 'transparent',
+                    borderRadius: heroStyle.borderRadius || '0',
+                });
+                document.body.appendChild(clone);
+
+                showPage('notes');
+                await nextFrame();
+
+                const selector = normalizedId !== null ? `.note-card[data-note-id="${normalizedId}"]` : null;
+                const targetHero = selector ? ui.notesPage.listContainer.querySelector(`${selector} .note-card-hero`) : null;
+                const targetCard = selector && !targetHero ? ui.notesPage.listContainer.querySelector(selector) : null;
+                const targetEl = targetHero || targetCard;
+                if (!targetEl) {
+                    clone.remove();
+                    return;
+                }
+
+                const targetRect = targetEl.getBoundingClientRect();
+                const dx = targetRect.left - startRect.left;
+                const dy = targetRect.top - startRect.top;
+                const sx = targetRect.width / startRect.width;
+                const sy = targetRect.height / startRect.height;
+                const duration = prefersReducedMotion() ? 1 : 260;
+
+                if (typeof clone.animate !== 'function') {
+                    clone.remove();
+                    return;
+                }
+
+                try {
+                    await clone.animate(
+                        [
+                            { transform: 'translate(0,0) scale(1,1)', opacity: 1 },
+                            { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 1 },
+                        ],
+                        { duration, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' }
+                    ).finished;
+                } catch (err) {
+                    console.warn('WAAPI animation failed while closing note:', err);
+                } finally {
+                    clone.remove();
+                }
+            };
+
+            const renderNotes = (filterQuery = '') => {
+                const { listContainer, noNotesPlaceholder } = ui.notesPage;
+                listContainer.innerHTML = '';
+                const query = filterQuery.trim().toLowerCase();
+                const filteredNotes = notes.filter(note => note.content.toLowerCase().includes(query));
+                noNotesPlaceholder.classList.toggle('hidden', filteredNotes.length > 0 || isNotesSelectionMode);
+
+                let newNoteHandled = false;
+                const reduceMotion = prefersReducedMotion();
+
+                filteredNotes.sort((a, b) => b.id - a.id).forEach(note => {
+                    const card = document.createElement('div');
+                    card.className = 'note-card cursor-pointer transition-all duration-150 transform active:scale-95';
+                    card.dataset.noteId = note.id;
+                    if (selectedNoteIds.has(note.id.toString())) {
+                        card.classList.add('ring-2', 'ring-blue-500');
+                    }
+                    card.innerHTML = `
+                        <div class="note-card-hero">
+                            <p class="note-content text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">${note.content.substring(0, 200)}${note.content.length > 200 ? '...' : ''}</p>
+                        </div>
+                        <div class="selection-indicator-wrapper ml-auto mr-1">
+                            <div class="selection-indicator-icon">
+                                <svg class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
+                            </div>
+                        </div>
+                    `;
+                    listContainer.appendChild(card);
+
+                    if (!newNoteHandled && note.id === newNoteId) {
+                        newNoteHandled = true;
+                        if (!reduceMotion) {
+                            void card.offsetWidth;
+                            card.classList.add('note-enter');
+                            card.addEventListener('animationend', () => {
+                                card.classList.remove('note-enter');
+                            }, { once: true });
+                        }
+                        requestAnimationFrame(() => {
+                            card.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+                        });
+                    }
+                });
+
+                if (newNoteHandled || filteredNotes.every(note => note.id !== newNoteId)) {
+                    newNoteId = null;
+                }
+            };
+
+            const saveCurrentNote = async () => {
+                const content = ui.noteEditorPage.textarea.value.trim();
+                let noteIdToTransition = currentNoteId;
+                newNoteId = null;
+
+                if (content) {
+                    if (currentNoteId !== null) {
+                        const index = notes.findIndex(n => n.id === currentNoteId);
+                        if (index > -1) {
+                            notes[index].content = content;
+                        }
+                    } else {
+                        const newNote = { id: Date.now(), content };
+                        notes.push(newNote);
+                        currentNoteId = newNote.id;
+                        noteIdToTransition = newNote.id;
+                        newNoteId = newNote.id;
+                    }
+                } else if (currentNoteId !== null) {
+                    notes = notes.filter(n => n.id !== currentNoteId);
+                }
+
+                saveData();
+
+                try {
+                    await closeEditorLikeKeep(noteIdToTransition);
+                } finally {
+                    currentNoteId = null;
+                }
+            };
+            <!-- [AI-EDIT END: keep-transition] -->
+
             // Global UI state
             let isSearchModalOpen = false;
+
 
             // --- Formatters ---
             const currencyFormatter = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 0 });
@@ -573,8 +891,12 @@
                 else if (pageId === 'notes') renderNotes();
                 else if (pageId === 'note-editor') setupNoteEditor(options.noteId);
                 else if (pageId === 'settings') renderDataManagementUI();
-                
+
                 toggleSidebar(false);
+            };
+
+            const openNoteEditor = (noteId = null) => {
+                showPage('note-editor', { noteId });
             };
 
             const createTransactionElement = (tx) => {
@@ -881,47 +1203,9 @@
                 container.innerHTML = `<button id="clear-account-data-btn" data-account-id-to-clear="${Object.keys(accounts)[0]}" class="w-full p-3 rounded-lg bg-red-500 text-white hover:bg-red-600">Очистить данные счета</button>`;
             };
 
-            const renderNotes = (filterQuery = '') => {
-                const { listContainer, noNotesPlaceholder } = ui.notesPage;
-                listContainer.innerHTML = '';
-                const query = filterQuery.trim().toLowerCase();
-                const filteredNotes = notes.filter(note => note.content.toLowerCase().includes(query));
-                noNotesPlaceholder.classList.toggle('hidden', filteredNotes.length > 0 || isNotesSelectionMode);
-                
-                filteredNotes.sort((a, b) => b.id - a.id).forEach(note => {
-                    const card = document.createElement('div');
-                    card.className = 'note-card cursor-pointer transition-all duration-150 transform active:scale-95';
-                    card.dataset.noteId = note.id;
-                    if (selectedNoteIds.has(note.id.toString())) {
-                        card.classList.add('selected');
-                    }
-                    card.innerHTML = `
-                        <p class="note-content text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">${note.content.substring(0, 200)}${note.content.length > 200 ? '...' : ''}</p>
-                        <div class="selection-indicator-wrapper">
-                            <div class="selection-indicator-icon">
-                                <svg class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
-                            </div>
-                        </div>
-                    `;
-                    listContainer.appendChild(card);
-                });
-            }
-
-            const saveCurrentNote = () => {
-                const content = ui.noteEditorPage.textarea.value.trim();
-                if (content) {
-                    if (currentNoteId !== null) {
-                        const index = notes.findIndex(n => n.id === currentNoteId);
-                        if (index > -1) notes[index].content = content;
-                    } else {
-                        notes.push({ id: Date.now(), content: content });
-                    }
-                } else if (currentNoteId !== null) {
-                    notes = notes.filter(n => n.id !== currentNoteId);
-                }
-                saveData();
-                showPage('notes');
-            }
+            <!-- [AI-EDIT START: keep-transition] -->
+            // superseded by keep-transition renderNotes/saveCurrentNote implementations above
+            <!-- [AI-EDIT END: keep-transition] -->
 
             function enterNotesSelectionMode(noteCard) {
                 isNotesSelectionMode = true;
@@ -930,7 +1214,7 @@
                 ui.notesPage.selectionHeader.classList.remove('hidden');
                 ui.addBtn.classList.add('hidden');
                 const noteId = noteCard.dataset.noteId;
-                noteCard.classList.add('selected');
+                noteCard.classList.add('ring-2', 'ring-blue-500');
                 selectedNoteIds.add(noteId);
                 updateSelectionHeader();
             }
@@ -943,12 +1227,38 @@
                 if (!isSearchModalOpen) {
                     ui.addBtn.classList.remove('hidden');
                 }
-                document.querySelectorAll('.note-card.selected').forEach(card => card.classList.remove('selected'));
+                document.querySelectorAll('.note-card').forEach(card => card.classList.remove('ring-2', 'ring-blue-500'));
                 selectedNoteIds.clear();
             }
 
             function updateSelectionHeader() {
                 ui.notesPage.selectionCountSpan.textContent = `Выбрано: ${selectedNoteIds.size}`;
+            }
+
+            // --- Toggle "Выбрать все" ---
+            const selectAllBtn = document.getElementById("select-all-btn");
+            if (selectAllBtn) {
+                selectAllBtn.addEventListener("click", () => {
+                    const noteCards = ui.notesPage.listContainer.querySelectorAll(".note-card");
+                    const allSelected = [...noteCards].length > 0 && [...noteCards].every(card => card.classList.contains("ring-2"));
+
+                    if (allSelected) {
+                        // Снять выделение со всех
+                        selectedNoteIds.clear();
+                        noteCards.forEach(card => card.classList.remove("ring-2", "ring-blue-500"));
+                    } else {
+                        // Выделить все
+                        selectedNoteIds.clear();
+                        noteCards.forEach(card => {
+                            const id = card.dataset.noteId;
+                            selectedNoteIds.add(id);
+                            card.classList.add("ring-2", "ring-blue-500");
+                        });
+                    }
+
+                    // Обновляем счётчик
+                    ui.notesPage.selectionCountSpan.textContent = `Выбрано: ${selectedNoteIds.size}`;
+                });
             }
             
             const renderPeriodButtons = () => {
@@ -1149,12 +1459,55 @@
                 showPage('main');
             };
 
+            /* [AI-EDIT START: sidebar-flicker-fix] */
+            let pendingSidebarOverlayClose = null;
+
             const toggleSidebar = (forceOpen) => {
                 const isOpen = ui.sidebar.classList.contains('open');
                 const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !isOpen;
-                ui.sidebar.classList.toggle('open', shouldOpen);
-                ui.sidebarOverlay.classList.toggle('hidden', !shouldOpen);
+                const overlay = ui.sidebarOverlay;
+
+                if (pendingSidebarOverlayClose) {
+                    overlay.removeEventListener('transitionend', pendingSidebarOverlayClose);
+                    pendingSidebarOverlayClose = null;
+                }
+
+                if (shouldOpen) {
+                    if (isOpen) {
+                        overlay.classList.remove('hidden');
+                        overlay.style.opacity = '1';
+                        return;
+                    }
+
+                    overlay.classList.remove('hidden');
+                    overlay.style.opacity = '0';
+                    void overlay.offsetWidth;
+                    ui.sidebar.classList.add('open');
+                    overlay.style.opacity = '1';
+                } else {
+                    const handleTransitionEnd = (event) => {
+                        if (event.propertyName !== 'opacity') return;
+                        overlay.classList.add('hidden');
+                        ui.sidebar.classList.remove('open');
+                        overlay.removeEventListener('transitionend', handleTransitionEnd);
+                        pendingSidebarOverlayClose = null;
+                    };
+
+                    pendingSidebarOverlayClose = handleTransitionEnd;
+
+                    if (overlay.classList.contains('hidden')) {
+                        handleTransitionEnd({ propertyName: 'opacity' });
+                        overlay.style.opacity = '0';
+                        return;
+                    }
+
+                    overlay.addEventListener('transitionend', handleTransitionEnd);
+                    ui.sidebar.classList.remove('open');
+                    overlay.style.opacity = '0';
+                }
             };
+            ui.sidebarOverlay.addEventListener('click', () => toggleSidebar(false));
+            /* [AI-EDIT END: sidebar-flicker-fix] */
             const applyTheme = (theme) => { if (theme === 'dark') ui.html.classList.add('dark'); else ui.html.classList.remove('dark'); ui.settingsPage.lightThemeBtn.classList.toggle('active', theme === 'light'); ui.settingsPage.darkThemeBtn.classList.toggle('active', theme === 'dark'); localStorage.setItem('finance_theme', theme); };
             
 
@@ -1349,11 +1702,13 @@
                         }
                         showTransactionModal(displayFilter);
                     } else if (activePageId === 'notes-page') {
-                        showPage('note-editor', { noteId: null });
+                        openNoteEditorLikeKeep(null);
                     }
                 };
                 
-                [ui.sidebarOverlay, ui.notesPage.menuBtn].forEach(el => el.onclick = () => toggleSidebar());
+                if (ui.notesPage.menuBtn) {
+                    ui.notesPage.menuBtn.onclick = () => toggleSidebar();
+                }
                 ui.settingsPage.lightThemeBtn.onclick = () => applyTheme('light');
                 ui.settingsPage.darkThemeBtn.onclick = () => applyTheme('dark');
                 
@@ -1414,11 +1769,12 @@
 
                     if (isNotesSelectionMode) {
                         const noteId = targetCard.dataset.noteId;
-                        targetCard.classList.toggle('selected');
                         if (selectedNoteIds.has(noteId)) {
                             selectedNoteIds.delete(noteId);
+                            targetCard.classList.remove('ring-2', 'ring-blue-500');
                         } else {
                             selectedNoteIds.add(noteId);
+                            targetCard.classList.add('ring-2', 'ring-blue-500');
                         }
                         if (selectedNoteIds.size === 0) {
                             exitNotesSelectionMode();
@@ -1426,19 +1782,14 @@
                             updateSelectionHeader();
                         }
                     } else {
-                        showPage('note-editor', { noteId: parseInt(targetCard.dataset.noteId) });
+                        <!-- [AI-EDIT START: keep-transition] -->
+                        const noteId = parseInt(targetCard.dataset.noteId, 10);
+                        openNoteEditorLikeKeep(Number.isNaN(noteId) ? null : noteId);
+                        <!-- [AI-EDIT END: keep-transition] -->
                     }
                 });
 
                 document.getElementById('selection-exit-btn').addEventListener('click', exitNotesSelectionMode);
-
-                document.getElementById('select-all-btn').addEventListener('click', () => {
-                    document.querySelectorAll('#notes-list-container .note-card').forEach(card => {
-                        card.classList.add('selected');
-                        selectedNoteIds.add(card.dataset.noteId);
-                    });
-                    updateSelectionHeader();
-                });
 
                 document.getElementById('delete-selected-btn-notes').addEventListener('click', () => {
                     if (selectedNoteIds.size === 0) return;
@@ -1489,10 +1840,9 @@
                         isDragging = false;
                         ui.sidebar.classList.remove('dragging');
                         ui.sidebar.style.transform = '';
-                        ui.sidebarOverlay.style.opacity = '';
 
                         const threshold = sidebarWidth / 2;
-                        
+
                         if (sidebarWidth > 0 && currentX < -threshold) {
                             toggleSidebar(false);
                         } else if (sidebarWidth > 0) {
@@ -1633,43 +1983,14 @@
             main();
         });
     </script>
-    <script src="cordova.js"></script>
-</body>
-</html>
-t').textContent = `Удалить выбранные операции (${selectedTxIds.size} шт.)?`;
-                    modal.querySelector('#confirm-ok').textContent = 'Да, удалить';
-                };
-
-                // System Back Button Handler
-                document.addEventListener('backbutton', handleBackButton, false);
-                window.addEventListener('popstate', (e) => {
-                    if (isSearchModalOpen) {
-                        handleBackButton(e);
-                    }
-                });
-            };
-            
-            function main() {
-                resetToToday();
-                loadData();
-                initializeAppEventListeners();
-                
-                const savedTheme = localStorage.getItem('finance_theme');
-                if (!savedTheme) {
-                    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                    applyTheme(systemPrefersDark ? 'dark' : 'light');
-                } else {
-                    applyTheme(savedTheme);
-                }
-                
-                showPage('main');
-                
-                ui.loadingOverlay.style.display = 'none';
-                ui.pageContainer.classList.remove('opacity-0');
+    <script>
+        document.addEventListener('contextmenu', (e) => {
+            const a = e.target.closest('a');
+            if (!a) return;
+            if (a.classList.contains('nav-link') || a.dataset.page) {
+                e.preventDefault();
             }
-
-            main();
-        });
+        }, { capture: true });
     </script>
     <script src="cordova.js"></script>
 </body>
