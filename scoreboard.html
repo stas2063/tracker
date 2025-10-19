@@ -128,24 +128,19 @@
       position:relative;
       border-radius:20px;
       padding:22px 18px;
-      background:radial-gradient(circle at 50% 30%, rgba(48,123,248,.35) 0%, rgba(17,37,86,.25) 45%, rgba(7,15,40,.9) 100%);
-      box-shadow:inset 0 18px 28px rgba(0,0,0,.45), inset 0 -6px 18px rgba(14,36,90,.55);
-      border:1px solid rgba(102,150,255,.18);
-      transition:box-shadow .25s ease, border-color .25s ease;
+      background:linear-gradient(160deg, rgba(20,54,118,.4) 0%, rgba(11,30,74,.6) 45%, rgba(6,16,44,.92) 100%);
+      box-shadow:inset 0 18px 28px rgba(0,0,0,.45), inset 0 -6px 18px rgba(14,36,90,.55), 0 0 24px rgba(80,158,255,.28);
+      border:1px solid rgba(102,150,255,.28);
     }
     .score-panel::after{
       content:"";
       position:absolute;
       inset:4px;
       border-radius:16px;
-      background:linear-gradient(145deg, rgba(6,18,47,.85) 0%, rgba(10,24,62,.75) 40%, rgba(16,34,78,.6) 100%);
+      background:linear-gradient(145deg, rgba(8,20,52,.85) 0%, rgba(12,26,62,.78) 45%, rgba(18,36,84,.7) 100%);
       z-index:0;
       pointer-events:none;
-      opacity:.7;
-    }
-    .score-panel.filled{
-      box-shadow:inset 0 18px 28px rgba(0,0,0,.45), inset 0 -6px 18px rgba(14,36,90,.65), 0 0 24px rgba(80,158,255,.28);
-      border-color:rgba(102,150,255,.38);
+      opacity:.65;
     }
     .score-input{
       position:relative;
@@ -158,18 +153,12 @@
       font-weight:900;
       text-align:center;
       letter-spacing:2px;
-      text-shadow:none;
-      transition:text-shadow .25s ease;
-    }
-    .score-panel.filled .score-input{
       text-shadow:0 0 8px rgba(168,211,255,.75), 0 0 22px rgba(35,143,255,.32);
-    }
-    .score-panel.filled .score-input:focus{
-      outline:none;
-      text-shadow:0 0 12px rgba(195,229,255,.85), 0 0 32px rgba(64,159,255,.45);
+      transition:text-shadow .25s ease;
     }
     .score-input:focus{
       outline:none;
+      text-shadow:0 0 12px rgba(195,229,255,.85), 0 0 32px rgba(64,159,255,.45);
     }
     /* hide number input arrows */
     .score-input::-webkit-outer-spin-button,
@@ -197,7 +186,7 @@
       <div class="card-content">
         <div class="score-label">&#1057;&#1095;&#1105;&#1090;</div>
           <div class="score-panel">
-            <input class="score-input" type="number" inputmode="numeric" value="" data-input-score />
+            <input class="score-input" type="number" inputmode="numeric" value="0" data-input-score />
           </div>
         </div>
       </section>
@@ -206,10 +195,10 @@
   <script>
     const defaultState = {
       teams: [
-        { name: '', score: '' },
-        { name: '', score: '' },
-        { name: '', score: '' },
-        { name: '', score: '' },
+        { name: '', score: 0 },
+        { name: '', score: 0 },
+        { name: '', score: 0 },
+        { name: '', score: 0 },
       ],
     };
 
@@ -225,18 +214,14 @@
       }
     };
     let state = load();
+    state.teams = state.teams.map((team) => ({
+      name: team.name || '',
+      score: Number(team.score) || 0,
+    }));
+    save(state);
 
     const teamsEl = document.getElementById('teams');
     const tmpl = document.getElementById('teamTemplate');
-
-    const isFilled = (value) => {
-      if (value === null || value === undefined) return false;
-      return String(value).trim() !== '';
-    };
-
-    function toggleScoreHighlight(panel, input){
-      panel.classList.toggle('filled', isFilled(input.value));
-    }
 
     function render(){
       teamsEl.innerHTML = '';
@@ -244,25 +229,16 @@
         const node = tmpl.content.firstElementChild.cloneNode(true);
         const nameInput = node.querySelector('.name-input');
         const scoreInput = node.querySelector('[data-input-score]');
-        const scorePanel = node.querySelector('.score-panel');
 
         nameInput.value = t.name;
-        const storedScore = isFilled(t.score) ? String(t.score) : '';
-        scoreInput.value = storedScore;
-        toggleScoreHighlight(scorePanel, scoreInput);
+        scoreInput.value = t.score;
 
         nameInput.addEventListener('input', (e) => {
           state.teams[idx].name = e.target.value;
           save(state);
         });
         scoreInput.addEventListener('input', (e) => {
-          const value = e.target.value.trim();
-          if (value === '') {
-            state.teams[idx].score = '';
-          } else {
-            state.teams[idx].score = Number(value);
-          }
-          toggleScoreHighlight(scorePanel, scoreInput);
+          state.teams[idx].score = Number(e.target.value) || 0;
           save(state);
         });
 
