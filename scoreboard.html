@@ -48,13 +48,6 @@
       letter-spacing:1px;
       text-shadow:0 0 12px rgba(0,212,255,.3);
     }
-    .card{
-      background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.0));
-      border:1px solid rgba(0,212,255,.18);
-      border-radius:var(--radius);
-      box-shadow:var(--shadow), var(--glow);
-      transition:border-color .2s ease, box-shadow .2s ease;
-    }
     .grid{
       display:grid;
       gap:24px;
@@ -66,58 +59,106 @@
       .grid{grid-template-columns:1fr}
     }
     .team-card{
-      padding:22px;
-      position:relative;
-      overflow:hidden;
+      background:linear-gradient(
+        to top right,
+        #975af4,
+        #2f7cf8 40%,
+        #78aafa 65%,
+        #934cff 100%
+      );
+      padding:4px;
+      border-radius:32px;
       display:flex;
       flex-direction:column;
-      gap:14px;
+      width:100%;
+      min-height:240px;
+      box-shadow:var(--shadow);
+    }
+    .title-card{
+      display:flex;
+      align-items:center;
+      padding:16px 18px;
+      justify-content:center;
+      color:#fff;
+    }
+    .title-card input{
+      font-size:18px;
+      font-weight:600;
+      background:transparent;
+      border:none;
+      color:inherit;
+      width:100%;
+      font-style:italic;
+      text-shadow:2px 2px 6px #2975ee;
+      text-align:center;
+    }
+    .title-card input::placeholder{
+      color:rgba(255,255,255,.7);
+    }
+    .title-card input:focus{
+      outline:none;
+    }
+    .card-content{
+      width:100%;
       height:100%;
+      background:linear-gradient(140deg, rgba(16,26,52,.95) 0%, rgba(10,19,44,.92) 35%, rgba(24,46,90,.9) 100%);
+      border-radius:30px;
+      color:#9fa7c9;
+      font-size:12px;
+      padding:22px 24px 26px;
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+      flex:1;
+      box-shadow:var(--shadow);
     }
     .name-input{
-      background:rgba(0,0,0,.2);
-      border:1px solid rgba(0,212,255,.25);
-      color:var(--text);
-      border-radius:12px;
-      padding:10px 14px;
       width:100%;
-      box-shadow:inset 0 0 0 rgba(0,0,0,0), var(--glow);
     }
     .name-input:focus{
       outline:none;
-      border-color:var(--accent);
-      box-shadow:0 0 0 2px rgba(0,212,255,.25), var(--glow);
-    }
-    .score-box{
-      background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.0));
-      border:1px solid rgba(0,212,255,.18);
-      border-radius:14px;
-      padding:16px;
-      display:grid;
-      gap:10px;
-      box-shadow:var(--shadow), var(--glow);
-      width:100%;
     }
     .score-label{
-      font-size:12px;
-      color:var(--muted);
+      font-size:13px;
+      color:#b4c7ff;
       text-transform:uppercase;
-      letter-spacing:.32px;
+      letter-spacing:.42px;
+    }
+    .score-panel{
+      position:relative;
+      border-radius:20px;
+      padding:22px 18px;
+      background:linear-gradient(160deg, rgba(20,54,118,.4) 0%, rgba(11,30,74,.6) 45%, rgba(6,16,44,.92) 100%);
+      box-shadow:inset 0 18px 28px rgba(0,0,0,.45), inset 0 -6px 18px rgba(14,36,90,.55), 0 0 24px rgba(80,158,255,.28);
+      border:1px solid rgba(102,150,255,.28);
+    }
+    .score-panel::after{
+      content:"";
+      position:absolute;
+      inset:4px;
+      border-radius:16px;
+      background:linear-gradient(145deg, rgba(8,20,52,.85) 0%, rgba(12,26,62,.78) 45%, rgba(18,36,84,.7) 100%);
+      z-index:0;
+      pointer-events:none;
+      opacity:.65;
     }
     .score-input{
-      background:rgba(4,16,46,.55);
-      color:#e9fbff;
-      border:1px solid rgba(0,212,255,.28);
-      border-radius:14px;
-      padding:10px 14px;
-      font-size:46px;
+      position:relative;
+      z-index:1;
+      background:transparent;
+      color:#f5fbff;
+      border:none;
+      width:100%;
+      font-size:56px;
       font-weight:900;
       text-align:center;
-      letter-spacing:1px;
-      text-shadow:0 0 10px rgba(0,212,255,.35), 0 0 22px rgba(0,212,255,.18);
-      box-shadow:inset 0 8px 24px rgba(0,0,0,.35), var(--glow);
-      width:100%;
-      display:block;
+      letter-spacing:2px;
+      text-shadow:none;
+      transition:text-shadow .25s ease;
+    }
+    .score-input:focus{
+      outline:none;
+      text-shadow:none;
     }
     /* hide number input arrows */
     .score-input::-webkit-outer-spin-button,
@@ -129,10 +170,6 @@
       appearance:textfield;
       -moz-appearance:textfield;
     }
-    .score-input:focus{
-      outline:none;
-      border-color:var(--accent);
-    }
   </style>
 </head>
 <body>
@@ -142,14 +179,18 @@
   </div>
 
   <template id="teamTemplate">
-    <section class="team-card card" data-team>
-      <input class="name-input" type="text" />
-      <div class="score-box">
-        <div class="score-label">&#1057;&#1095;&#1105;&#1090;</div>
-        <input class="score-input" type="number" inputmode="numeric" value="0" data-input-score />
+    <section class="team-card" data-team>
+      <div class="title-card">
+        <input class="name-input" type="text" placeholder="&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077; &#1082;&#1086;&#1084;&#1072;&#1085;&#1076;&#1099;" />
       </div>
-    </section>
-  </template>
+      <div class="card-content">
+        <div class="score-label">&#1057;&#1095;&#1105;&#1090;</div>
+          <div class="score-panel">
+            <input class="score-input" type="number" inputmode="numeric" value="0" data-input-score />
+          </div>
+        </div>
+      </section>
+    </template>
 
   <script>
     const defaultState = {
@@ -173,6 +214,11 @@
       }
     };
     let state = load();
+    state.teams = state.teams.map((team) => ({
+      name: team.name || '',
+      score: Number(team.score) || 0,
+    }));
+    save(state);
 
     const teamsEl = document.getElementById('teams');
     const tmpl = document.getElementById('teamTemplate');
